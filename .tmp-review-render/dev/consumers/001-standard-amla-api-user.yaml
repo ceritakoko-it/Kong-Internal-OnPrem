@@ -1,0 +1,37 @@
+"consumers":
+  - "custom_id": "7xhj9fal3ahau9qh"
+    "groups":
+      - "name": "amla_api_group"
+    "keyauth_credentials":
+      - "key": "902f11df-7a11-4f1a-bef1-03326df0c260"
+    "plugins":
+      - "config":
+          "day": null
+          "error_code": 429
+          "error_message": "API rate limit exceeded"
+          "fault_tolerant": true
+          "header_name": null
+          "hide_client_headers": false
+          "hour": 1000
+          "limit_by": "consumer"
+          "minute": 1000
+          "month": null
+          "path": null
+          "policy": "redis"
+          "redis_server_name": null
+          "redis_username": null
+          "second": null
+          "sync_rate": -1
+          "year": null
+        "enabled": true
+        "name": "rate-limiting"
+        "partials":
+          - "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
+            "name": "on-premise-dev-redis"
+            "path": "config.redis"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+    "username": "standard_amla_api_user"

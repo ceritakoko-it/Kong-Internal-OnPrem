@@ -1,4 +1,4 @@
-﻿parameters:
+parameters:
 - name: environment
   type: string
 - name: controlPlane
@@ -7,7 +7,7 @@
 stages:
 - stage: Promote_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
   displayName: Promote to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
-  condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), or(eq('${{ parameters.environment }}', 'PreProd'), eq('${{ parameters.environment }}', 'Prod'), eq('${{ parameters.environment }}', 'Dr')))"
+  condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), or(eq('${{ parameters.environment }}', 'PreProd'), eq('${{ parameters.environment }}', 'Prod'), eq('${{ parameters.environment }}', 'DR')))"
   jobs:
   - job: Promote
     displayName: Promote modular state
@@ -19,6 +19,16 @@ stages:
       fetchDepth: 0
       persistCredentials: true
       displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        git checkout --force "$(Build.SourceVersion)"
+        ACTUAL_COMMIT="$(git rev-parse HEAD)"
+        echo "Branch: $(Build.SourceBranch)"
+        echo "Requested commit: $(Build.SourceVersion)"
+        echo "Checked out commit: ${ACTUAL_COMMIT}"
+        test "$ACTUAL_COMMIT" = "$(Build.SourceVersion)"
+      displayName: Pin checkout to selected commit
 
     - bash: |
         set -euo pipefail
@@ -52,58 +62,112 @@ stages:
           prod) SOURCE_ENV="PreProd"; SOURCE_ENV_LOWER="preprod" ;;
           dr) SOURCE_ENV="Prod"; SOURCE_ENV_LOWER="prod" ;;
           *)
-            echo "Promotion target must be PreProd, Prod, or Dr. Received: ${TARGET_ENV}"
+            echo "Promotion target must be PreProd, Prod, or DR. Received: ${TARGET_ENV}"
             exit 1
             ;;
         esac
 
         if [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
           CP_SEGMENT="onprem"
-          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
         elif [ "$CP_LOWER" = "oncloud" ]; then
           CP_SEGMENT="oncloud"
-          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
         else
           echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
           exit 1
         fi
 
-        SOURCE_DIR="kong/${SOURCE_ENV_LOWER}/${CP_SEGMENT}"
-        TARGET_DIR="kong/${TARGET_ENV_LOWER}/${CP_SEGMENT}"
         TARGET_DUMP_FILE="kong-${TARGET_ENV_LOWER}-${CP_SEGMENT}.yaml"
 
-        test -d "$SOURCE_DIR" || { echo "Source modular folder not found: $SOURCE_DIR"; exit 1; }
+        if [ "$CP_SEGMENT" = "onprem" ] && [ -d "kong/internal/onprem" ]; then
+          ENV_FILE="kong/env/${TARGET_ENV_LOWER}-onprem.env"
+          TARGET_DIR="$(Pipeline.Workspace)/rendered/${TARGET_ENV_LOWER}/onprem"
+          test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
+          set -a
+          # shellcheck disable=SC1090
+          source "$ENV_FILE"
+          set +a
+          test -n "${CONTROL_PLANE_NAME:-}" || { echo "CONTROL_PLANE_NAME missing in $ENV_FILE"; exit 1; }
+          CONTROL_PLANE_TARGET="$CONTROL_PLANE_NAME"
 
-        rm -rf "$TARGET_DIR"
-        mkdir -p "$TARGET_DIR"
-        cp -R "$SOURCE_DIR"/. "$TARGET_DIR"/
+          echo "Promotion prepared from shared base kong/internal/onprem"
+          echo "Target control plane: $CONTROL_PLANE_TARGET"
+          echo "##vso[task.setvariable variable=USE_RENDERED_STATE]true"
+          echo "##vso[task.setvariable variable=RESOLVED_TEMPLATE_PATH]kong/internal/onprem"
+          echo "##vso[task.setvariable variable=RESOLVED_ENV_FILE]${ENV_FILE}"
+        elif [ "$CP_SEGMENT" = "oncloud" ] && [ -d "kong/external/oncloud" ]; then
+          ENV_FILE="kong/env/${TARGET_ENV_LOWER}-oncloud.env"
+          TARGET_DIR="$(Pipeline.Workspace)/rendered/${TARGET_ENV_LOWER}/oncloud"
+          test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
+          set -a
+          # shellcheck disable=SC1090
+          source "$ENV_FILE"
+          set +a
+          test -n "${CONTROL_PLANE_NAME:-}" || { echo "CONTROL_PLANE_NAME missing in $ENV_FILE"; exit 1; }
+          CONTROL_PLANE_TARGET="$CONTROL_PLANE_NAME"
 
-        # Rewrite environment tokens and control plane metadata in promoted YAML modules.
-        find "$TARGET_DIR" -type f \( -name "*.yaml" -o -name "*.yml" \) -print0 | while IFS= read -r -d '' file; do
-          perl -0777 -i -pe "s/\\b${SOURCE_ENV_LOWER}\\b/${TARGET_ENV_LOWER}/gi; s/([_\\/-])${SOURCE_ENV_LOWER}(?=[_\\/-\\s\\.:]|\\$)/\\\$1${TARGET_ENV_LOWER}/gi;" "$file"
-          sed -E -i "s|^([[:space:]]*control_plane_name:[[:space:]]*).*$|\\1${CONTROL_PLANE_TARGET}|g" "$file"
-        done
-
-        echo "Promotion prepared from $SOURCE_DIR to $TARGET_DIR"
-        echo "Target control plane: $CONTROL_PLANE_TARGET"
-        git config user.email "azure-pipelines@local"
-        git config user.name "azure-pipelines"
-        git add "$TARGET_DIR"
-        if git diff --cached --quiet; then
-          echo "No repository changes to commit for $TARGET_DIR"
+          echo "Promotion prepared from shared base kong/external/oncloud"
+          echo "Target control plane: $CONTROL_PLANE_TARGET"
+          echo "##vso[task.setvariable variable=USE_RENDERED_STATE]true"
+          echo "##vso[task.setvariable variable=RESOLVED_TEMPLATE_PATH]kong/external/oncloud"
+          echo "##vso[task.setvariable variable=RESOLVED_ENV_FILE]${ENV_FILE}"
         else
-          BRANCH_NAME="${BUILD_SOURCEBRANCH#refs/heads/}"
-          echo "Committing promoted state updates to branch: $BRANCH_NAME"
-          git commit -m "chore: promote ${SOURCE_ENV_LOWER} to ${TARGET_ENV_LOWER} (${CP_SEGMENT}) [skip ci]"
-          git push origin "HEAD:${BRANCH_NAME}"
+          SOURCE_DIR="kong/${SOURCE_ENV_LOWER}/${CP_SEGMENT}"
+          TARGET_DIR="kong/${TARGET_ENV_LOWER}/${CP_SEGMENT}"
+          test -d "$SOURCE_DIR" || { echo "Source modular folder not found: $SOURCE_DIR"; exit 1; }
+
+          if [ "$CP_SEGMENT" = "onprem" ]; then
+            CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
+          else
+            CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
+          fi
+
+          rm -rf "$TARGET_DIR"
+          mkdir -p "$TARGET_DIR"
+          cp -R "$SOURCE_DIR"/. "$TARGET_DIR"/
+
+          find "$TARGET_DIR" -type f \( -name "*.yaml" -o -name "*.yml" \) -print0 | while IFS= read -r -d '' file; do
+            perl -0777 -i -pe "s/\\b${SOURCE_ENV_LOWER}\\b/${TARGET_ENV_LOWER}/gi; s/([_\\/-])${SOURCE_ENV_LOWER}(?=[_\\/-\\s\\.:]|\\$)/\\\$1${TARGET_ENV_LOWER}/gi;" "$file"
+            sed -E -i "s|^([[:space:]]*control_plane_name:[[:space:]]*).*$|\\1${CONTROL_PLANE_TARGET}|g" "$file"
+          done
+
+          echo "Promotion prepared from $SOURCE_DIR to $TARGET_DIR"
+          echo "Target control plane: $CONTROL_PLANE_TARGET"
+          git config user.email "azure-pipelines@local"
+          git config user.name "azure-pipelines"
+          git add "$TARGET_DIR"
+          if git diff --cached --quiet; then
+            echo "No repository changes to commit for $TARGET_DIR"
+          else
+            BRANCH_NAME="${BUILD_SOURCEBRANCH#refs/heads/}"
+            echo "Committing promoted state updates to branch: $BRANCH_NAME"
+            git commit -m "chore: promote ${SOURCE_ENV_LOWER} to ${TARGET_ENV_LOWER} (${CP_SEGMENT}) [skip ci]"
+            git push origin "HEAD:${BRANCH_NAME}"
+          fi
+          echo "##vso[task.setvariable variable=USE_RENDERED_STATE]false"
+          echo "##vso[task.setvariable variable=RESOLVED_TEMPLATE_PATH]"
+          echo "##vso[task.setvariable variable=RESOLVED_ENV_FILE]"
         fi
+
         echo "##vso[task.setvariable variable=PROMOTION_SOURCE_ENV]${SOURCE_ENV}"
         echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE_TARGET}"
         echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${TARGET_DIR}"
         echo "##vso[task.setvariable variable=RESOLVED_DUMP_FILE]${TARGET_DUMP_FILE}"
-      displayName: Build promoted modular state (Uat->PreProd / PreProd->Prod / Prod->Dr)
+      displayName: Prepare promoted state
       env:
         BUILD_SOURCEBRANCH: $(Build.SourceBranch)
+
+    - bash: |
+        set -euo pipefail
+        bash scripts/render-kong-state.sh \
+          "$RESOLVED_TEMPLATE_PATH" \
+          "$RESOLVED_ENV_FILE" \
+          "$RESOLVED_TARGET_PATH"
+      displayName: Render shared state
+      condition: and(succeeded(), eq(variables['USE_RENDERED_STATE'], 'true'))
+      env:
+        RESOLVED_TEMPLATE_PATH: $(RESOLVED_TEMPLATE_PATH)
+        RESOLVED_ENV_FILE: $(RESOLVED_ENV_FILE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
 
     - bash: |
         set -euo pipefail
@@ -119,16 +183,9 @@ stages:
 
     - bash: |
         set -euo pipefail
-        deck gateway validate \
-          --konnect-token "$KONG_TOKEN" \
-          --konnect-addr "$KONG_ADDR" \
-          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
-          "$RESOLVED_TARGET_PATH"
-      displayName: decK gateway validate (promoted state)
+        deck file validate "$RESOLVED_TARGET_PATH"
+      displayName: decK file validate (promoted state)
       env:
-        KONG_TOKEN: $(KONG_TOKEN)
-        KONG_ADDR: $(KONG_ADDR)
-        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
         RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
 
     - bash: |
@@ -223,5 +280,3 @@ stages:
         KONG_ADDR: $(KONG_ADDR)
         RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
         RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
-
-

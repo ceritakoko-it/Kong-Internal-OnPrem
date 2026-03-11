@@ -295,21 +295,88 @@ plugins:
     functions:
     - |-
       return function(status, body, headers)
-        if status == 404 then
-          local new_body = {
-            error = true,
-            status = status,
-            message = "This is not the Route you are looking for."
-          }
-          return status, new_body, headers
-        end
-        return status, body, headers
+          body = body or {}
+
+          local is_kong_id = headers["x-kong-request-id"] or headers["X-Kong-Request-ID"]
+          local auth_header = headers["www-authenticate"] or headers["WWW-Authenticate"] or ""
+          local is_oidc_error = string.find(auth_header, "konghq.com") ~= nil
+
+          if is_kong_id or is_oidc_error then
+              if status == 400 then
+                  body.internal_code = 8400
+                  body.error_type = "API_INVALID_REQUEST"
+                  body.message = "Invalid request parameters"
+              elseif status == 401 then
+                  body.internal_code = 8401
+                  body.error_type = "API_UNAUTHORIZED"
+                  body.message = "Authentication failed"
+              elseif status == 403 then
+                  body.internal_code = 8403
+                  body.error_type = "API_FORBIDDEN"
+                  body.message = "Insufficient permissions"
+              elseif status == 404 then
+                  body.internal_code = 8404
+                  body.error_type = "API_NOT_FOUND"
+                  body.message = "Resource not found"
+              elseif status == 409 then
+                  body.internal_code = 8409
+                  body.error_type = "API_DUPLICATE_REQUEST"
+                  body.message = "Duplicate idempotency key"
+              elseif status == 422 then
+                  body.internal_code = 8422
+                  body.error_type = "API_VALIDATION_ERROR"
+                  body.message = "Validation failed"
+              elseif status == 429 then
+                  body.internal_code = 8429
+                  body.error_type = "API_RATE_LIMIT_EXCEEDED"
+                  body.message = "Too many requests"
+              elseif status == 500 then
+                  body.internal_code = 8500
+                  body.error_type = "API_INTERNAL_ERROR"
+                  body.message = "Internal server error"
+              elseif status == 503 then
+                  body.internal_code = 8503
+                  body.error_type = "API_SERVICE_UNAVAILABLE"
+                  body.message = "Service temporarily unavailable"
+              end
+          end
+
+          return status, body, headers
       end
     handle_unexpected: false
     handle_unknown: false
-  enabled: false
-  instance_name: exit-404
+  enabled: true
+  instance_name: Global-Error-Handling
   name: exit-transformer
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+- config:
+    content_type: application/json
+    custom_fields_by_lua: {}
+    flush_timeout: null
+    headers: {}
+    http_endpoint: http://10.30.101.22:3100/loki/api/v1/push
+    keepalive: 60000
+    method: POST
+    queue:
+      concurrency_limit: 1
+      initial_retry_delay: 0.01
+      max_batch_size: 1
+      max_bytes: null
+      max_coalescing_delay: 1
+      max_entries: 10000
+      max_retry_delay: 60
+      max_retry_time: 60
+    queue_size: null
+    retry_count: null
+    ssl_verify: null
+    timeout: 10000
+  enabled: true
+  instance_name: dev-onpremise
+  name: http-log
   protocols:
   - grpc
   - grpcs

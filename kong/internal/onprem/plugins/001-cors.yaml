@@ -1,0 +1,27 @@
+"plugins":
+  - "config":
+      "allow_origin_absent": true
+      "credentials": false
+      "exposed_headers": null
+      "headers": null
+      "max_age": null
+      "methods":
+        - "GET"
+        - "HEAD"
+        - "PUT"
+        - "PATCH"
+        - "POST"
+        - "DELETE"
+        - "OPTIONS"
+        - "TRACE"
+        - "CONNECT"
+      "origins": null
+      "preflight_continue": false
+      "private_network": false
+    "enabled": true
+    "name": "cors"
+    "protocols":
+      - "grpc"
+      - "grpcs"
+      - "http"
+      - "https"
