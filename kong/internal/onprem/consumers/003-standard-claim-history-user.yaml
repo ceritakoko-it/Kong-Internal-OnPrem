@@ -1,0 +1,35 @@
+"consumers":
+  - "custom_id": "yexgid3cxbw5mf69"
+    "groups":
+      - "name": "claim_history_group"
+    "plugins":
+      - "config":
+          "day": null
+          "error_code": 429
+          "error_message": "API rate limit exceeded"
+          "fault_tolerant": true
+          "header_name": null
+          "hide_client_headers": false
+          "hour": 100
+          "limit_by": "consumer"
+          "minute": 100
+          "month": null
+          "path": null
+          "policy": "redis"
+          "redis_server_name": null
+          "redis_username": null
+          "second": null
+          "sync_rate": -1
+          "year": null
+        "enabled": true
+        "name": "rate-limiting"
+        "partials":
+          - "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
+            "name": "__REDIS_PARTIAL_NAME__"
+            "path": "config.redis"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+    "username": "standard_claim_history_user"

@@ -5,6 +5,8 @@ parameters:
   type: string
 - name: rollbackBuildId
   type: string
+- name: rollbackBackupFile
+  type: string
 
 stages:
 - stage: Rollback_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
@@ -21,6 +23,16 @@ stages:
       fetchDepth: 0
       persistCredentials: true
       displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        git checkout --force "$(Build.SourceVersion)"
+        ACTUAL_COMMIT="$(git rev-parse HEAD)"
+        echo "Branch: $(Build.SourceBranch)"
+        echo "Requested commit: $(Build.SourceVersion)"
+        echo "Checked out commit: ${ACTUAL_COMMIT}"
+        test "$ACTUAL_COMMIT" = "$(Build.SourceVersion)"
+      displayName: Pin checkout to selected commit
 
     - bash: |
         set -euo pipefail
@@ -41,11 +53,24 @@ stages:
           echo "rollbackBuildId is required when mode=rollback"
           exit 1
         fi
+        test -n "${ROLLBACK_BACKUP_FILE:-}" || { echo "rollbackBackupFile parameter is empty"; exit 1; }
+        if [ "$ROLLBACK_BACKUP_FILE" = "not-required" ]; then
+          echo "rollbackBackupFile is required when mode=rollback"
+          exit 1
+        fi
+        case "$ROLLBACK_BACKUP_FILE" in
+          *.yaml|*.yml) ;;
+          *)
+            echo "rollbackBackupFile must be a .yaml or .yml file"
+            exit 1
+            ;;
+        esac
       displayName: Validate required variables
       env:
         KONG_TOKEN: $(KONG_TOKEN)
         KONG_ADDR: $(KONG_ADDR)
         ROLLBACK_BUILD_ID: ${{ parameters.rollbackBuildId }}
+        ROLLBACK_BACKUP_FILE: ${{ parameters.rollbackBackupFile }}
 
     - bash: |
         set -euo pipefail
@@ -69,9 +94,11 @@ stages:
         echo "Target control plane: ${CONTROL_PLANE_TARGET}"
         echo "Rollback artifact name: ${ARTIFACT_NAME}"
         echo "Rollback download directory: ${DOWNLOAD_DIR}"
+        echo "Requested rollback backup file: ${{ parameters.rollbackBackupFile }}"
         echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE_TARGET}"
         echo "##vso[task.setvariable variable=ROLLBACK_ARTIFACT_NAME]${ARTIFACT_NAME}"
         echo "##vso[task.setvariable variable=ROLLBACK_DOWNLOAD_DIR]${DOWNLOAD_DIR}"
+        echo "##vso[task.setvariable variable=ROLLBACK_BACKUP_FILE]${{ parameters.rollbackBackupFile }}"
       displayName: Resolve control plane and rollback artifact
 
     - task: DownloadPipelineArtifact@2
@@ -88,14 +115,52 @@ stages:
 
     - bash: |
         set -euo pipefail
-        ROLLBACK_FILE="$(find "$ROLLBACK_DOWNLOAD_DIR" -type f -name '*-current-before-sync-*.yaml' | sort | tail -1)"
-        test -n "${ROLLBACK_FILE:-}" || { echo "No current-before-sync backup file found in ${ROLLBACK_DOWNLOAD_DIR}"; exit 1; }
+        ROLLBACK_FILE="$(find "$ROLLBACK_DOWNLOAD_DIR" -type f \( -name "$ROLLBACK_BACKUP_FILE" \) | head -1)"
+        test -n "${ROLLBACK_FILE:-}" || { echo "Requested rollback backup file not found: $ROLLBACK_BACKUP_FILE"; exit 1; }
 
         echo "Resolved rollback source file: ${ROLLBACK_FILE}"
         echo "##vso[task.setvariable variable=RESOLVED_ROLLBACK_FILE]${ROLLBACK_FILE}"
       displayName: Resolve rollback dump file
       env:
         ROLLBACK_DOWNLOAD_DIR: $(ROLLBACK_DOWNLOAD_DIR)
+        ROLLBACK_BACKUP_FILE: $(ROLLBACK_BACKUP_FILE)
+
+    - bash: |
+        set -euo pipefail
+
+        EXPECTED_ARTIFACT_NAME="$ROLLBACK_ARTIFACT_NAME"
+        EXPECTED_CONTROL_PLANE="$RESOLVED_CONTROL_PLANE"
+        RESOLVED_FILE="$RESOLVED_ROLLBACK_FILE"
+        RESOLVED_BASENAME="$(basename "$RESOLVED_FILE")"
+        RESOLVED_ARTIFACT_DIR="$(basename "$(dirname "$RESOLVED_FILE")")"
+
+        echo "Expected artifact: $EXPECTED_ARTIFACT_NAME"
+        echo "Resolved artifact dir: $RESOLVED_ARTIFACT_DIR"
+        echo "Resolved rollback file: $RESOLVED_BASENAME"
+        echo "Expected control plane: $EXPECTED_CONTROL_PLANE"
+
+        if [ "$RESOLVED_ARTIFACT_DIR" != "$EXPECTED_ARTIFACT_NAME" ]; then
+          echo "Rollback artifact mismatch. Expected artifact directory '$EXPECTED_ARTIFACT_NAME' but resolved '$RESOLVED_ARTIFACT_DIR'."
+          exit 1
+        fi
+
+        FILE_CONTROL_PLANE="$(grep -E '^[[:space:]]*control_plane_name:' "$RESOLVED_FILE" | head -1 | sed -E 's/^[[:space:]]*control_plane_name:[[:space:]]*//')"
+        FILE_CONTROL_PLANE="${FILE_CONTROL_PLANE%\"}"
+        FILE_CONTROL_PLANE="${FILE_CONTROL_PLANE#\"}"
+
+        test -n "${FILE_CONTROL_PLANE:-}" || { echo "Unable to resolve control_plane_name from rollback file: $RESOLVED_BASENAME"; exit 1; }
+
+        echo "Rollback file control plane: $FILE_CONTROL_PLANE"
+
+        if [ "$FILE_CONTROL_PLANE" != "$EXPECTED_CONTROL_PLANE" ]; then
+          echo "Rollback file/control plane mismatch. Selected environment/control plane resolves to '$EXPECTED_CONTROL_PLANE' but rollback file contains '$FILE_CONTROL_PLANE'."
+          exit 1
+        fi
+      displayName: Validate rollback artifact alignment
+      env:
+        ROLLBACK_ARTIFACT_NAME: $(ROLLBACK_ARTIFACT_NAME)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)
 
     - bash: |
         set -euo pipefail
@@ -111,16 +176,9 @@ stages:
 
     - bash: |
         set -euo pipefail
-        deck gateway validate \
-          --konnect-token "$KONG_TOKEN" \
-          --konnect-addr "$KONG_ADDR" \
-          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
-          "$RESOLVED_ROLLBACK_FILE"
-      displayName: decK gateway validate (rollback state)
+        deck file validate "$RESOLVED_ROLLBACK_FILE"
+      displayName: decK file validate (rollback state)
       env:
-        KONG_TOKEN: $(KONG_TOKEN)
-        KONG_ADDR: $(KONG_ADDR)
-        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
         RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)
 
     - bash: |
