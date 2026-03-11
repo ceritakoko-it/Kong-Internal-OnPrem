@@ -65,13 +65,11 @@ Recommended:
 
 Without these values, deployment, promotion, and rollback will fail in the `Validate required variables` step.
 
-## Shared OnPrem Layout
+## Environment Setup
 
-Shared `OnPrem` state now lives in:
+For `OnPrem`, each environment must have a matching env file under `kong/env/`.
 
-- `kong/internal/onprem`
-
-Environment files live in:
+Current files:
 
 - `kong/env/dev-onprem.env`
 - `kong/env/uat-onprem.env`
@@ -79,13 +77,9 @@ Environment files live in:
 - `kong/env/prod-onprem.env`
 - `kong/env/dr-onprem.env`
 
-Legacy per-environment source folders such as `kong/dev/onprem` are no longer the source of truth.
+Each env file contains the values used to render the shared base.
 
-## Environment Setup
-
-Each environment must have a matching env file under `kong/env/`.
-
-The env files currently parameterize:
+Values that usually must be reviewed per environment:
 
 - `CONTROL_PLANE_NAME`
 - `ENV_TAG_LOWER`
@@ -105,26 +99,18 @@ The env files currently parameterize:
 - `REDIS_CACHE_PARTIAL_NAME`
 - `VAULT_CONFIG_STORE_ID`
 
-Values that must be reviewed per environment before first deployment:
+### First-Time Setup For Uat / PreProd / Prod / DR
 
-- control plane name and casing
-- all public and internal hostnames
-- all upstream service hosts
-- issuer URL and get-token host/name
-- redis host and password
-- redis partial names if they differ by environment
-- vault `config_store_id`
-
-## First-Time Environment Setup
-
-Before first deployment to a new environment, make sure these dependencies already exist in Konnect for that target control plane:
+Before first deployment to a new environment, make sure these dependencies already exist in Konnect for that target environment:
 
 1. Identity issuer / identity domain
+- example:
+  - `Dev-OnPremise` -> `https://<dev-identity-domain>.sg.identity.konghq.com/auth`
+  - `Uat-OnPremise` -> `https://<uat-identity-domain>.sg.identity.konghq.com/auth`
+  - `Prod-OnPremise` -> `https://<prod-identity-domain>.sg.identity.konghq.com/auth`
 - update both:
   - `ISSUER_URL`
   - `GET_TOKEN_SERVICE_HOST`
-- masked example:
-  - `https://<env-identity-domain>.sg.identity.konghq.com/auth`
 
 2. Vault `konnect` with prefix `identity`
 - create the vault in the target control plane if it does not exist yet
@@ -138,50 +124,86 @@ Important:
 - do not use the top-level vault `id`
 - use only `config.config_store_id`
 
-3. Route and certificate hostnames
+Example:
+
+If Konnect returns:
+
+```json
+{
+  "config": {
+    "config_store_id": "<config-store-id>"
+  },
+  "id": "<vault-id>",
+  "name": "konnect",
+  "prefix": "identity"
+}
+```
+
+Then the env file must contain:
+
+```env
+VAULT_CONFIG_STORE_ID=<config-store-id>
+```
+
+Not:
+
+```env
+VAULT_CONFIG_STORE_ID=<vault-id>
+```
+
+3. Review route and certificate hostnames for the target environment
 - set:
   - `INTERNAL_TLS_HOST`
   - `PUBLIC_HOST_PRIMARY`
   - `PUBLIC_HOST_SECONDARY`
 - `PUBLIC_HOST_SECONDARY` may be left blank
 
-4. Upstream and cache dependencies
-- set the real values for:
-  - `AML_REST_SERVICE_HOST`
-  - `BANCAWEB_SERVICE_HOST`
-  - `CLAIMHISTORY_STORM_SERVICE_HOST`
-  - `KYC_WSMANAGER_SERVICE_HOST`
-  - `REDIS_HOST`
-  - `REDIS_PASSWORD`
-  - `REDIS_PARTIAL_NAME`
-  - `REDIS_CACHE_PARTIAL_NAME`
+4. Review any environment-specific upstream and cache values
+- `AML_REST_SERVICE_HOST`
+- `BANCAWEB_SERVICE_HOST`
+- `CLAIMHISTORY_STORM_SERVICE_HOST`
+- `KYC_WSMANAGER_SERVICE_HOST`
+- `REDIS_HOST`
+- `REDIS_PASSWORD`
+- `REDIS_PARTIAL_NAME`
+- `REDIS_CACHE_PARTIAL_NAME`
 
-## Parameter Checklist By Environment
+### Parameter Checklist By Environment
+
+Before first run for each environment, verify:
 
 `Dev-OnPremise`
 - `CONTROL_PLANE_NAME=Dev-OnPremise`
-- fill all host values with the real Dev endpoints
-- `VAULT_CONFIG_STORE_ID` must match the Dev config store
+- `GET_TOKEN_SERVICE_NAME=Dev-OnPremise-Get-Token`
+- `GET_TOKEN_SERVICE_HOST=<dev-identity-domain>.sg.identity.konghq.com`
+- `ISSUER_URL=https://<dev-identity-domain>.sg.identity.konghq.com/auth`
+- `VAULT_CONFIG_STORE_ID` matches the Dev config store
 
 `Uat-OnPremise`
 - `CONTROL_PLANE_NAME=Uat-OnPremise`
-- replace the placeholder hosts in `kong/env/uat-onprem.env`
-- replace the placeholder redis password and config store ID before first run
+- `GET_TOKEN_SERVICE_NAME=Uat-OnPremise-Get-Token`
+- `GET_TOKEN_SERVICE_HOST=<uat-identity-domain>.sg.identity.konghq.com`
+- `ISSUER_URL=https://<uat-identity-domain>.sg.identity.konghq.com/auth`
+- `VAULT_CONFIG_STORE_ID` matches the UAT config store
 
 `PreProd-OnPremise`
 - `CONTROL_PLANE_NAME=PreProd-OnPremise`
-- replace the placeholder hosts in `kong/env/preprod-onprem.env`
-- replace the placeholder redis password and config store ID before first run
+- `GET_TOKEN_SERVICE_NAME=PreProd-OnPremise-Get-Token`
+- set the real PreProd identity host and issuer before first run
+- set the real PreProd `VAULT_CONFIG_STORE_ID` before first run
 
 `Prod-OnPremise`
 - `CONTROL_PLANE_NAME=Prod-OnPremise`
-- replace the placeholder hosts in `kong/env/prod-onprem.env`
-- replace the placeholder redis password and config store ID before first run
+- `GET_TOKEN_SERVICE_NAME=Prod-OnPremise-Get-Token`
+- `GET_TOKEN_SERVICE_HOST=<prod-identity-domain>.sg.identity.konghq.com`
+- `ISSUER_URL=https://<prod-identity-domain>.sg.identity.konghq.com/auth`
+- `VAULT_CONFIG_STORE_ID` matches the Prod config store
 
 `DR-OnPremise`
 - `CONTROL_PLANE_NAME=DR-OnPremise`
-- replace the placeholder hosts in `kong/env/dr-onprem.env`
-- replace the placeholder redis password and config store ID before first run
+- `GET_TOKEN_SERVICE_NAME=DR-OnPremise-Get-Token`
+- set the real DR identity host and issuer before first run
+- set the real DR `VAULT_CONFIG_STORE_ID` before first run
 
 ## Governance Rules (Enforced)
 
@@ -249,16 +271,45 @@ Shared high-level behavior:
 OnPrem repository behavior:
 
 1. `kong/internal/onprem` is the shared base template.
-2. The selected target environment loads the matching env file from `kong/env/`.
+2. The selected target environment loads:
+- `kong/env/dev-onprem.env`
+- `kong/env/uat-onprem.env`
+- `kong/env/preprod-onprem.env`
+- `kong/env/prod-onprem.env`
+- `kong/env/dr-onprem.env`
 3. The pipeline renders the shared base into a temporary folder and deploys that rendered output.
-4. Promotion for shared `OnPrem` no longer copies repo folders. It renders `kong/internal/onprem` using the target environment file and deploys directly to the target control plane.
-5. Legacy folder-copy promotion remains only as fallback for control planes without a shared base template.
+4. `kong/<env>/onprem` folders are no longer used for `OnPrem`.
 
-Rendering notes:
+Environment files currently parameterize:
+
+- `CONTROL_PLANE_NAME`
+- `ENV_TAG_LOWER`
+- `INTERNAL_TLS_HOST`
+- `PUBLIC_HOST_PRIMARY`
+- `PUBLIC_HOST_SECONDARY` (optional)
+- `AML_REST_SERVICE_HOST`
+- `BANCAWEB_SERVICE_HOST`
+- `CLAIMHISTORY_STORM_SERVICE_HOST`
+- `KYC_WSMANAGER_SERVICE_HOST`
+- `GET_TOKEN_SERVICE_NAME`
+- `GET_TOKEN_SERVICE_HOST`
+- `ISSUER_URL`
+- `REDIS_HOST`
+- `REDIS_PASSWORD`
+- `REDIS_PARTIAL_NAME`
+- `REDIS_CACHE_PARTIAL_NAME`
+- `VAULT_CONFIG_STORE_ID`
+
+Notes:
 
 - `PUBLIC_HOST_PRIMARY` is required.
-- `PUBLIC_HOST_SECONDARY` is optional.
-- if `PUBLIC_HOST_SECONDARY` is blank, the renderer removes the second `hosts` item so the output YAML stays valid.
+- `PUBLIC_HOST_SECONDARY` is optional. If blank, the renderer removes the second `hosts` entry so route YAML stays valid.
+- `VAULT_CONFIG_STORE_ID` must match the live config store binding intended for that environment. Changing it on an already-used vault may fail due to Konnect reference constraints.
+
+Promotion-specific repository behavior:
+
+1. For shared `OnPrem`, promotion no longer copies repo folders. It renders `kong/internal/onprem` using the target environment file and deploys directly to the target control plane.
+2. Legacy folder-copy promotion is still used for control planes that do not have a shared base template.
 
 ## Backup Mechanism
 
@@ -287,11 +338,52 @@ Rollback re-applies backup dump state from a previous run artifact to the select
 2. Download artifact named `kong-backup-<environment>-<controlPlane>-<rollbackBuildId>`.
 3. Resolve rollback source file using the exact `rollbackBackupFile` parameter value.
 4. Validate rollback alignment:
-- artifact directory must match the selected `environment`, `controlPlane`, and `rollbackBuildId`
+- the selected rollback file must come from the requested rollback artifact download
 - rollback YAML `control_plane_name` must exactly match the selected target control plane
 5. Run `deck gateway ping`, `deck file validate`, and `diff`.
 6. If diff shows changes, execute `deck gateway sync` using the resolved rollback dump file.
 
-## Validation
+### 6.4. Pipeline Automation with Azure DevOps
 
-CI validates the rendered output with `deck file validate` by rendering each committed `kong/env/*-onprem.env` file against `kong/internal/onprem`.
+To execute this strategy reliably, manual intervention must be eliminated. All backup, restore, and rollback operations will be handled by Azure Pipelines.
+
+## Mermaid Flow Diagram
+
+```mermaid
+flowchart TD
+    A[Manual Run Triggered] --> B{Branch}
+    B -->|development| C[Validate_Run_Rules]
+    B -->|uat| C
+    B -->|master| C
+    B -->|other| X[Fail Pipeline]
+
+    C --> C0{mode + environment valid for branch?}
+    C0 -->|No| X
+    C0 -->|Yes| D{mode}
+
+    D -->|deployment| E[Deploy Stage]
+    D -->|promotion| F[Promote Stage]
+
+    E --> E0[Checkout + Pin Commit]
+    E0 --> E1[Install decK + Validate Vars]
+    E1 --> E2[Resolve target path, env file, control plane]
+    E2 --> E21[Render shared OnPrem state when available]
+    E21 --> E3[Ping + File Validate + Diff]
+    E3 --> E4{Created/Updated/Deleted > 0?}
+    E4 -->|No| Z[Finish - No Sync]
+    E4 -->|Yes| E5[Backup current]
+    E5 --> E6[Publish backup artifact]
+    E6 --> E7[deck gateway sync]
+    E7 --> Z
+
+    F --> F1{environment}
+    F1 -->|PreProd/Prod/DR| F2[Checkout + Pin Commit]
+    F2 --> F4[Resolve target env file and render shared OnPrem state]
+    F4 --> F5[Ping + File Validate + Diff]
+    F5 --> F6{Created/Updated/Deleted > 0?}
+    F6 -->|No| Z
+    F6 -->|Yes| F7[Backup current]
+    F7 --> F8[Publish backup artifact]
+    F8 --> F9[deck gateway sync]
+    F9 --> Z
+```
