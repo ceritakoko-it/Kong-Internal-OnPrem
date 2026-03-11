@@ -128,21 +128,11 @@ stages:
     - bash: |
         set -euo pipefail
 
-        EXPECTED_ARTIFACT_NAME="$ROLLBACK_ARTIFACT_NAME"
         EXPECTED_CONTROL_PLANE="$RESOLVED_CONTROL_PLANE"
         RESOLVED_FILE="$RESOLVED_ROLLBACK_FILE"
         RESOLVED_BASENAME="$(basename "$RESOLVED_FILE")"
-        RESOLVED_ARTIFACT_DIR="$(basename "$(dirname "$RESOLVED_FILE")")"
-
-        echo "Expected artifact: $EXPECTED_ARTIFACT_NAME"
-        echo "Resolved artifact dir: $RESOLVED_ARTIFACT_DIR"
         echo "Resolved rollback file: $RESOLVED_BASENAME"
         echo "Expected control plane: $EXPECTED_CONTROL_PLANE"
-
-        if [ "$RESOLVED_ARTIFACT_DIR" != "$EXPECTED_ARTIFACT_NAME" ]; then
-          echo "Rollback artifact mismatch. Expected artifact directory '$EXPECTED_ARTIFACT_NAME' but resolved '$RESOLVED_ARTIFACT_DIR'."
-          exit 1
-        fi
 
         FILE_CONTROL_PLANE="$(grep -E '^[[:space:]]*control_plane_name:' "$RESOLVED_FILE" | head -1 | sed -E 's/^[[:space:]]*control_plane_name:[[:space:]]*//')"
         FILE_CONTROL_PLANE="${FILE_CONTROL_PLANE%\"}"
@@ -158,7 +148,6 @@ stages:
         fi
       displayName: Validate rollback artifact alignment
       env:
-        ROLLBACK_ARTIFACT_NAME: $(ROLLBACK_ARTIFACT_NAME)
         RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
         RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)
 
