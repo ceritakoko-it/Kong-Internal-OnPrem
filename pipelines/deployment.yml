@@ -1,0 +1,229 @@
+﻿parameters:
+- name: environment
+  type: string
+- name: controlPlane
+  type: string
+
+stages:
+- stage: Deploy_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Deploy ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+  condition: "and(succeeded(), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
+  jobs:
+  - job: Deploy
+    displayName: decK Deploy
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+      persistCredentials: true
+      displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        DECK_VERSION="1.52.0"
+        curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
+        tar -xzf deck.tar.gz
+        sudo mv deck /usr/local/bin/deck
+        rm -f deck.tar.gz
+        deck version
+      displayName: Install decK
+
+    - bash: |
+        set -euo pipefail
+        test -n "${KONG_TOKEN:-}" || { echo "KONG_TOKEN is empty or not set"; exit 1; }
+        test -n "${KONG_ADDR:-}" || { echo "KONG_ADDR is empty or not set"; exit 1; }
+      displayName: Validate required variables
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+
+    - bash: |
+        set -euo pipefail
+        SELECTED_ENV="${{ parameters.environment }}"
+        SELECTED_CP="${{ parameters.controlPlane }}"
+        CONTROL_PLANE="${SELECTED_ENV}-${SELECTED_CP}"
+
+        ENV_LOWER="$(echo "$SELECTED_ENV" | tr '[:upper:]' '[:lower:]')"
+        CP_LOWER="$(echo "$SELECTED_CP" | tr '[:upper:]' '[:lower:]')"
+
+        if [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
+          DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
+          MODULE_DIR="kong/${ENV_LOWER}/onprem"
+        elif [ "$CP_LOWER" = "oncloud" ]; then
+          DUMP_FILE="kong-${ENV_LOWER}-oncloud.yaml"
+          MODULE_DIR="kong/${ENV_LOWER}/oncloud"
+        else
+          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
+          exit 1
+        fi
+
+        if [ -d "$MODULE_DIR" ]; then
+          TARGET_PATH="$MODULE_DIR"
+        else
+          TARGET_PATH="$DUMP_FILE"
+        fi
+
+        test -n "${TARGET_PATH:-}" || { echo "Resolved target path is empty"; exit 1; }
+        test -n "${DUMP_FILE:-}" || { echo "Resolved dump file is empty"; exit 1; }
+
+        echo "Control plane: ${CONTROL_PLANE}"
+        echo "Target path: ${TARGET_PATH}"
+        echo "Dump file: ${DUMP_FILE}"
+        echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE}"
+        echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${TARGET_PATH}"
+        echo "##vso[task.setvariable variable=RESOLVED_DUMP_FILE]${DUMP_FILE}"
+      displayName: Resolve control plane and state paths
+
+    - bash: |
+        set -euo pipefail
+        deck gateway ping \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE"
+      displayName: decK gateway ping
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+
+    - bash: |
+        set -euo pipefail
+        if [ -d "$RESOLVED_TARGET_PATH" ] || [ -f "$RESOLVED_TARGET_PATH" ]; then
+          echo "Using checked-in state: $RESOLVED_TARGET_PATH"
+          echo "##vso[task.setvariable variable=RUN_DECK_DUMP]false"
+        else
+          echo "State missing. Dumping to $RESOLVED_DUMP_FILE first."
+          echo "##vso[task.setvariable variable=RUN_DECK_DUMP]true"
+          echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${RESOLVED_DUMP_FILE}"
+        fi
+      displayName: Determine source state
+      env:
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+        RESOLVED_DUMP_FILE: $(RESOLVED_DUMP_FILE)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway dump \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --output-file "$RESOLVED_DUMP_FILE" \
+          --yes
+      displayName: decK gateway dump (fallback)
+      condition: and(succeeded(), eq(variables['RUN_DECK_DUMP'], 'true'))
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_DUMP_FILE: $(RESOLVED_DUMP_FILE)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway validate \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_TARGET_PATH"
+      displayName: decK gateway validate
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - bash: |
+        set -euo pipefail
+        DIFF_OUT="$(mktemp)"
+
+        set +e
+        deck gateway diff \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_TARGET_PATH" | tee "$DIFF_OUT"
+        DIFF_RC=${PIPESTATUS[0]}
+        set -e
+
+        if [ "$DIFF_RC" -ne 0 ] && [ "$DIFF_RC" -ne 2 ]; then
+          echo "deck gateway diff failed with exit code: $DIFF_RC"
+          exit "$DIFF_RC"
+        fi
+
+        CREATED="$(grep -Eo 'Created:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        UPDATED="$(grep -Eo 'Updated:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        DELETED="$(grep -Eo 'Deleted:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+
+        CREATED="${CREATED:-0}"
+        UPDATED="${UPDATED:-0}"
+        DELETED="${DELETED:-0}"
+
+        echo "Detected diff summary => Created: $CREATED, Updated: $UPDATED, Deleted: $DELETED (rc=$DIFF_RC)"
+
+        if [ "$CREATED" -gt 0 ] || [ "$UPDATED" -gt 0 ] || [ "$DELETED" -gt 0 ]; then
+          echo "Changes found."
+          echo "##vso[task.setvariable variable=HAS_CHANGES]true"
+        else
+          echo "No changes found."
+          echo "##vso[task.setvariable variable=HAS_CHANGES]false"
+        fi
+      displayName: decK gateway diff
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - bash: |
+        set -euo pipefail
+        BACKUP_DIR="${BACKUP_ROOT}/kong-backup"
+        mkdir -p "$BACKUP_DIR"
+
+        TS="$(date +%Y%m%d-%H%M%S)"
+        CP_SAFE="$(echo "${RESOLVED_CONTROL_PLANE}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+        CURRENT_BACKUP_FILE="${BACKUP_DIR}/${CP_SAFE}-current-before-sync-${TS}.yaml"
+
+        echo "Backing up current control plane state to: $CURRENT_BACKUP_FILE"
+        deck gateway dump \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --output-file "$CURRENT_BACKUP_FILE" \
+          --yes
+
+        echo "##vso[task.setvariable variable=BACKUP_DIR]${BACKUP_DIR}"
+      displayName: Backup current state (pre-sync)
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      env:
+        BACKUP_ROOT: $(Build.ArtifactStagingDirectory)
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish rollback backup artifact
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      inputs:
+        targetPath: $(BACKUP_DIR)
+        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
+        publishLocation: pipeline
+
+    - bash: |
+        set -euo pipefail
+        deck gateway sync \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --yes \
+          "$RESOLVED_TARGET_PATH"
+      displayName: decK gateway sync
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+

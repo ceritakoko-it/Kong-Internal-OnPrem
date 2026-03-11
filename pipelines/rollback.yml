@@ -1,0 +1,179 @@
+parameters:
+- name: environment
+  type: string
+- name: controlPlane
+  type: string
+- name: rollbackBuildId
+  type: string
+
+stages:
+- stage: Rollback_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Rollback to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+  condition: "and(succeeded(), ne('${{ parameters.rollbackBuildId }}', 'not-required'), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master')), and(eq('${{ parameters.environment }}', 'Prod'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
+  jobs:
+  - job: Rollback
+    displayName: Rollback using backup dump artifact
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+      persistCredentials: true
+      displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        DECK_VERSION="1.52.0"
+        curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
+        tar -xzf deck.tar.gz
+        sudo mv deck /usr/local/bin/deck
+        rm -f deck.tar.gz
+        deck version
+      displayName: Install decK
+
+    - bash: |
+        set -euo pipefail
+        test -n "${KONG_TOKEN:-}" || { echo "KONG_TOKEN is empty or not set"; exit 1; }
+        test -n "${KONG_ADDR:-}" || { echo "KONG_ADDR is empty or not set"; exit 1; }
+        test -n "${ROLLBACK_BUILD_ID:-}" || { echo "rollbackBuildId parameter is empty"; exit 1; }
+        if [ "$ROLLBACK_BUILD_ID" = "not-required" ]; then
+          echo "rollbackBuildId is required when mode=rollback"
+          exit 1
+        fi
+      displayName: Validate required variables
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        ROLLBACK_BUILD_ID: ${{ parameters.rollbackBuildId }}
+
+    - bash: |
+        set -euo pipefail
+        TARGET_ENV="${{ parameters.environment }}"
+        SELECTED_CP="${{ parameters.controlPlane }}"
+
+        if [ "$SELECTED_CP" = "OnPremise" ] || [ "$SELECTED_CP" = "onprem" ] || [ "$SELECTED_CP" = "OnPrem" ]; then
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
+          ARTIFACT_CP="OnPremise"
+        elif [ "$SELECTED_CP" = "OnCloud" ] || [ "$SELECTED_CP" = "oncloud" ]; then
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
+          ARTIFACT_CP="OnCloud"
+        else
+          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
+          exit 1
+        fi
+
+        ARTIFACT_NAME="kong-backup-${TARGET_ENV}-${ARTIFACT_CP}-${{ parameters.rollbackBuildId }}"
+        DOWNLOAD_DIR="$(Pipeline.Workspace)/rollback-backup"
+
+        echo "Target control plane: ${CONTROL_PLANE_TARGET}"
+        echo "Rollback artifact name: ${ARTIFACT_NAME}"
+        echo "Rollback download directory: ${DOWNLOAD_DIR}"
+        echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE_TARGET}"
+        echo "##vso[task.setvariable variable=ROLLBACK_ARTIFACT_NAME]${ARTIFACT_NAME}"
+        echo "##vso[task.setvariable variable=ROLLBACK_DOWNLOAD_DIR]${DOWNLOAD_DIR}"
+      displayName: Resolve control plane and rollback artifact
+
+    - task: DownloadPipelineArtifact@2
+      displayName: Download rollback backup artifact
+      inputs:
+        buildType: specific
+        project: $(System.TeamProject)
+        definition: $(System.DefinitionId)
+        specificBuildWithTriggering: false
+        buildVersionToDownload: specific
+        pipelineId: ${{ parameters.rollbackBuildId }}
+        artifactName: $(ROLLBACK_ARTIFACT_NAME)
+        targetPath: $(ROLLBACK_DOWNLOAD_DIR)
+
+    - bash: |
+        set -euo pipefail
+        ROLLBACK_FILE="$(find "$ROLLBACK_DOWNLOAD_DIR" -type f -name '*-current-before-sync-*.yaml' | sort | tail -1)"
+        test -n "${ROLLBACK_FILE:-}" || { echo "No current-before-sync backup file found in ${ROLLBACK_DOWNLOAD_DIR}"; exit 1; }
+
+        echo "Resolved rollback source file: ${ROLLBACK_FILE}"
+        echo "##vso[task.setvariable variable=RESOLVED_ROLLBACK_FILE]${ROLLBACK_FILE}"
+      displayName: Resolve rollback dump file
+      env:
+        ROLLBACK_DOWNLOAD_DIR: $(ROLLBACK_DOWNLOAD_DIR)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway ping \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE"
+      displayName: decK gateway ping (target)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway validate \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_ROLLBACK_FILE"
+      displayName: decK gateway validate (rollback state)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)
+
+    - bash: |
+        set -euo pipefail
+        DIFF_OUT="$(mktemp)"
+
+        set +e
+        deck gateway diff \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_ROLLBACK_FILE" | tee "$DIFF_OUT"
+        DIFF_RC=${PIPESTATUS[0]}
+        set -e
+
+        if [ "$DIFF_RC" -ne 0 ] && [ "$DIFF_RC" -ne 2 ]; then
+          echo "deck gateway diff failed with exit code: $DIFF_RC"
+          exit "$DIFF_RC"
+        fi
+
+        CREATED="$(grep -Eo 'Created:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        UPDATED="$(grep -Eo 'Updated:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        DELETED="$(grep -Eo 'Deleted:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+
+        CREATED="${CREATED:-0}"
+        UPDATED="${UPDATED:-0}"
+        DELETED="${DELETED:-0}"
+
+        echo "Detected rollback diff summary => Created: $CREATED, Updated: $UPDATED, Deleted: $DELETED (rc=$DIFF_RC)"
+        if [ "$CREATED" -gt 0 ] || [ "$UPDATED" -gt 0 ] || [ "$DELETED" -gt 0 ]; then
+          echo "##vso[task.setvariable variable=HAS_CHANGES]true"
+        else
+          echo "##vso[task.setvariable variable=HAS_CHANGES]false"
+        fi
+      displayName: decK gateway diff (rollback state)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway sync \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --yes \
+          "$RESOLVED_ROLLBACK_FILE"
+      displayName: decK gateway sync (rollback)
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_ROLLBACK_FILE: $(RESOLVED_ROLLBACK_FILE)

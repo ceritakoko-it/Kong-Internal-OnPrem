@@ -1,0 +1,227 @@
+﻿parameters:
+- name: environment
+  type: string
+- name: controlPlane
+  type: string
+
+stages:
+- stage: Promote_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Promote to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+  condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), or(eq('${{ parameters.environment }}', 'PreProd'), eq('${{ parameters.environment }}', 'Prod'), eq('${{ parameters.environment }}', 'Dr')))"
+  jobs:
+  - job: Promote
+    displayName: Promote modular state
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+      persistCredentials: true
+      displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        DECK_VERSION="1.52.0"
+        curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
+        tar -xzf deck.tar.gz
+        sudo mv deck /usr/local/bin/deck
+        rm -f deck.tar.gz
+        deck version
+      displayName: Install decK
+
+    - bash: |
+        set -euo pipefail
+        test -n "${KONG_TOKEN:-}" || { echo "KONG_TOKEN is empty or not set"; exit 1; }
+        test -n "${KONG_ADDR:-}" || { echo "KONG_ADDR is empty or not set"; exit 1; }
+      displayName: Validate required variables
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+
+    - bash: |
+        set -euo pipefail
+
+        TARGET_ENV="${{ parameters.environment }}"
+        TARGET_ENV_LOWER="$(echo "$TARGET_ENV" | tr '[:upper:]' '[:lower:]')"
+        SELECTED_CP="${{ parameters.controlPlane }}"
+        CP_LOWER="$(echo "$SELECTED_CP" | tr '[:upper:]' '[:lower:]')"
+
+        case "$TARGET_ENV_LOWER" in
+          preprod) SOURCE_ENV="Uat"; SOURCE_ENV_LOWER="uat" ;;
+          prod) SOURCE_ENV="PreProd"; SOURCE_ENV_LOWER="preprod" ;;
+          dr) SOURCE_ENV="Prod"; SOURCE_ENV_LOWER="prod" ;;
+          *)
+            echo "Promotion target must be PreProd, Prod, or Dr. Received: ${TARGET_ENV}"
+            exit 1
+            ;;
+        esac
+
+        if [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
+          CP_SEGMENT="onprem"
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
+        elif [ "$CP_LOWER" = "oncloud" ]; then
+          CP_SEGMENT="oncloud"
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
+        else
+          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
+          exit 1
+        fi
+
+        SOURCE_DIR="kong/${SOURCE_ENV_LOWER}/${CP_SEGMENT}"
+        TARGET_DIR="kong/${TARGET_ENV_LOWER}/${CP_SEGMENT}"
+        TARGET_DUMP_FILE="kong-${TARGET_ENV_LOWER}-${CP_SEGMENT}.yaml"
+
+        test -d "$SOURCE_DIR" || { echo "Source modular folder not found: $SOURCE_DIR"; exit 1; }
+
+        rm -rf "$TARGET_DIR"
+        mkdir -p "$TARGET_DIR"
+        cp -R "$SOURCE_DIR"/. "$TARGET_DIR"/
+
+        # Rewrite environment tokens and control plane metadata in promoted YAML modules.
+        find "$TARGET_DIR" -type f \( -name "*.yaml" -o -name "*.yml" \) -print0 | while IFS= read -r -d '' file; do
+          perl -0777 -i -pe "s/\\b${SOURCE_ENV_LOWER}\\b/${TARGET_ENV_LOWER}/gi; s/([_\\/-])${SOURCE_ENV_LOWER}(?=[_\\/-\\s\\.:]|\\$)/\\\$1${TARGET_ENV_LOWER}/gi;" "$file"
+          sed -E -i "s|^([[:space:]]*control_plane_name:[[:space:]]*).*$|\\1${CONTROL_PLANE_TARGET}|g" "$file"
+        done
+
+        echo "Promotion prepared from $SOURCE_DIR to $TARGET_DIR"
+        echo "Target control plane: $CONTROL_PLANE_TARGET"
+        git config user.email "azure-pipelines@local"
+        git config user.name "azure-pipelines"
+        git add "$TARGET_DIR"
+        if git diff --cached --quiet; then
+          echo "No repository changes to commit for $TARGET_DIR"
+        else
+          BRANCH_NAME="${BUILD_SOURCEBRANCH#refs/heads/}"
+          echo "Committing promoted state updates to branch: $BRANCH_NAME"
+          git commit -m "chore: promote ${SOURCE_ENV_LOWER} to ${TARGET_ENV_LOWER} (${CP_SEGMENT}) [skip ci]"
+          git push origin "HEAD:${BRANCH_NAME}"
+        fi
+        echo "##vso[task.setvariable variable=PROMOTION_SOURCE_ENV]${SOURCE_ENV}"
+        echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE_TARGET}"
+        echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${TARGET_DIR}"
+        echo "##vso[task.setvariable variable=RESOLVED_DUMP_FILE]${TARGET_DUMP_FILE}"
+      displayName: Build promoted modular state (Uat->PreProd / PreProd->Prod / Prod->Dr)
+      env:
+        BUILD_SOURCEBRANCH: $(Build.SourceBranch)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway ping \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE"
+      displayName: decK gateway ping (target)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+
+    - bash: |
+        set -euo pipefail
+        deck gateway validate \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_TARGET_PATH"
+      displayName: decK gateway validate (promoted state)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - bash: |
+        set -euo pipefail
+        DIFF_OUT="$(mktemp)"
+
+        set +e
+        deck gateway diff \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          "$RESOLVED_TARGET_PATH" | tee "$DIFF_OUT"
+        DIFF_RC=${PIPESTATUS[0]}
+        set -e
+
+        if [ "$DIFF_RC" -ne 0 ] && [ "$DIFF_RC" -ne 2 ]; then
+          echo "deck gateway diff failed with exit code: $DIFF_RC"
+          exit "$DIFF_RC"
+        fi
+
+        CREATED="$(grep -Eo 'Created:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        UPDATED="$(grep -Eo 'Updated:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+        DELETED="$(grep -Eo 'Deleted:[[:space:]]*[0-9]+' "$DIFF_OUT" | awk '{print $2}' | tail -1)"
+
+        CREATED="${CREATED:-0}"
+        UPDATED="${UPDATED:-0}"
+        DELETED="${DELETED:-0}"
+
+        echo "Detected diff summary => Created: $CREATED, Updated: $UPDATED, Deleted: $DELETED (rc=$DIFF_RC)"
+
+        if [ "$CREATED" -gt 0 ] || [ "$UPDATED" -gt 0 ] || [ "$DELETED" -gt 0 ]; then
+          echo "Changes found."
+          echo "##vso[task.setvariable variable=HAS_CHANGES]true"
+        else
+          echo "No changes found."
+          echo "##vso[task.setvariable variable=HAS_CHANGES]false"
+        fi
+      displayName: decK gateway diff (target)
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - bash: |
+        set -euo pipefail
+        BACKUP_DIR="${BACKUP_ROOT}/kong-backup"
+        mkdir -p "$BACKUP_DIR"
+
+        TS="$(date +%Y%m%d-%H%M%S)"
+        CP_SAFE="$(echo "${RESOLVED_CONTROL_PLANE}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9-' '-')"
+        CURRENT_BACKUP_FILE="${BACKUP_DIR}/${CP_SAFE}-current-before-sync-${TS}.yaml"
+
+        echo "Backing up current control plane state to: $CURRENT_BACKUP_FILE"
+        deck gateway dump \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --output-file "$CURRENT_BACKUP_FILE" \
+          --yes
+
+        echo "##vso[task.setvariable variable=BACKUP_DIR]${BACKUP_DIR}"
+      displayName: Backup current state (pre-sync)
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      env:
+        BACKUP_ROOT: $(Build.ArtifactStagingDirectory)
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+    - task: PublishPipelineArtifact@1
+      displayName: Publish rollback backup artifact
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      inputs:
+        targetPath: $(BACKUP_DIR)
+        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
+        publishLocation: pipeline
+
+    - bash: |
+        set -euo pipefail
+        deck gateway sync \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+          --yes \
+          "$RESOLVED_TARGET_PATH"
+      displayName: decK gateway sync (target)
+      condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+

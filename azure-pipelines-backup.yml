@@ -1,0 +1,192 @@
+﻿trigger: none
+pr: none
+
+parameters:
+- name: environment
+  displayName: Environment
+  type: string
+  default: Dev
+  values:
+  - Dev
+  - Uat
+  - Prod
+- name: controlPlane
+  displayName: Control Plane
+  type: string
+  default: OnPremise
+  values:
+  - OnPremise
+  - OnCloud
+
+pool:
+  vmImage: ubuntu-latest
+
+container: dockerstudy93/deck-image:latest
+
+steps:
+- checkout: self
+  clean: true
+  fetchDepth: 0
+  persistCredentials: true
+  displayName: Checkout self (Azure Repos)
+
+- bash: |
+    set -euo pipefail
+    SELECTED_ENV="${{ parameters.environment }}"
+    SELECTED_CP="${{ parameters.controlPlane }}"
+    CONTROL_PLANE="${SELECTED_ENV}-${SELECTED_CP}"
+
+    ENV_LOWER="$(echo "$SELECTED_ENV" | tr '[:upper:]' '[:lower:]')"
+    CP_LOWER="$(echo "$SELECTED_CP" | tr '[:upper:]' '[:lower:]')"
+
+    if [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
+      DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
+      MODULE_DIR="kong/${ENV_LOWER}/onprem"
+    elif [ "$CP_LOWER" = "oncloud" ]; then
+      DUMP_FILE="kong-${ENV_LOWER}-oncloud.yaml"
+      MODULE_DIR="kong/${ENV_LOWER}/oncloud"
+    else
+      echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
+      exit 1
+    fi
+
+    if [ -d "$MODULE_DIR" ]; then
+      TARGET_PATH="$MODULE_DIR"
+    else
+      TARGET_PATH="$DUMP_FILE"
+    fi
+
+    test -n "${CONTROL_PLANE:-}" || { echo "Resolved control plane is empty for ${SELECTED_ENV}-${SELECTED_CP}"; exit 1; }
+    test -n "${TARGET_PATH:-}" || { echo "Resolved target path is empty for ${SELECTED_ENV}-${SELECTED_CP}"; exit 1; }
+    test -n "${DUMP_FILE:-}" || { echo "Resolved dump file is empty for ${SELECTED_ENV}-${SELECTED_CP}"; exit 1; }
+
+    echo "Selected environment: ${SELECTED_ENV}"
+    echo "Selected control plane type: ${SELECTED_CP}"
+    echo "Resolved control plane: ${CONTROL_PLANE}"
+    echo "Resolved target path: ${TARGET_PATH}"
+    echo "Resolved dump file: ${DUMP_FILE}"
+    echo "##vso[task.setvariable variable=RESOLVED_CONTROL_PLANE]${CONTROL_PLANE}"
+    echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${TARGET_PATH}"
+    echo "##vso[task.setvariable variable=RESOLVED_DUMP_FILE]${DUMP_FILE}"
+  displayName: Resolve target control plane and state paths
+
+- bash: |
+    set -euo pipefail
+    ls -la
+    if [ -d "$RESOLVED_TARGET_PATH" ]; then
+      echo "Found folder target: $RESOLVED_TARGET_PATH"
+    elif [ -f "$RESOLVED_TARGET_PATH" ]; then
+      echo "Found file target: $RESOLVED_TARGET_PATH"
+    else
+      echo "Target path not found: $RESOLVED_TARGET_PATH"
+    fi
+  displayName: Check repo files and target path presence
+  env:
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+- bash: |
+    set -euo pipefail
+    test -n "${KONG_TOKEN:-}" || { echo "KONG_TOKEN is empty or not set"; exit 1; }
+    test -n "${KONG_ADDR:-}" || { echo "KONG_ADDR is empty or not set"; exit 1; }
+    test -n "${RESOLVED_CONTROL_PLANE:-}" || { echo "RESOLVED_CONTROL_PLANE is empty or not set"; exit 1; }
+    test -n "${RESOLVED_TARGET_PATH:-}" || { echo "RESOLVED_TARGET_PATH is empty or not set"; exit 1; }
+    test -n "${RESOLVED_DUMP_FILE:-}" || { echo "RESOLVED_DUMP_FILE is empty or not set"; exit 1; }
+    echo "KONG_TOKEN is set: yes"
+    echo "KONG_TOKEN length: ${#KONG_TOKEN}"
+    echo "Konnect addr: $KONG_ADDR"
+    echo "Control plane: $RESOLVED_CONTROL_PLANE"
+    echo "Control target path: $RESOLVED_TARGET_PATH"
+    echo "Control dump file: $RESOLVED_DUMP_FILE"
+  displayName: Validate required variables
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+    RESOLVED_DUMP_FILE: $(RESOLVED_DUMP_FILE)
+
+- bash: |
+    set -euo pipefail
+    deck gateway ping \
+      --konnect-token "$KONG_TOKEN" \
+      --konnect-addr "$KONG_ADDR" \
+      --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE"
+  displayName: deck gateway ping
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+
+- bash: |
+    set -euo pipefail
+    if [ -d "$RESOLVED_TARGET_PATH" ] || [ -f "$RESOLVED_TARGET_PATH" ]; then
+      echo "Found $RESOLVED_TARGET_PATH from checkout. Skipping dump."
+      echo "##vso[task.setvariable variable=RUN_DECK_DUMP]false"
+    else
+      echo "$RESOLVED_TARGET_PATH not found after checkout. Will run dump to $RESOLVED_DUMP_FILE."
+      echo "##vso[task.setvariable variable=RUN_DECK_DUMP]true"
+      echo "##vso[task.setvariable variable=RESOLVED_TARGET_PATH]${RESOLVED_DUMP_FILE}"
+    fi
+  displayName: Check target path exists after checkout
+  env:
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+    RESOLVED_DUMP_FILE: $(RESOLVED_DUMP_FILE)
+
+- bash: |
+    set -euo pipefail
+    deck gateway dump \
+      --konnect-token "$KONG_TOKEN" \
+      --konnect-addr "$KONG_ADDR" \
+      --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+      --output-file "$RESOLVED_DUMP_FILE" \
+      --yes
+  displayName: deck gateway dump
+  condition: and(succeeded(), eq(variables['RUN_DECK_DUMP'], 'true'))
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+    RESOLVED_DUMP_FILE: $(RESOLVED_DUMP_FILE)
+
+- bash: |
+    set -euo pipefail
+    deck gateway validate \
+      --konnect-token "$KONG_TOKEN" \
+      --konnect-addr "$KONG_ADDR" \
+      --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+      "$RESOLVED_TARGET_PATH"
+  displayName: deck gateway validate
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+- bash: |
+    set -euo pipefail
+    deck gateway diff \
+      --konnect-token "$KONG_TOKEN" \
+      --konnect-addr "$KONG_ADDR" \
+      --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+      "$RESOLVED_TARGET_PATH"
+  displayName: deck gateway diff
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
+
+- bash: |
+    set -euo pipefail
+    deck gateway sync \
+      --konnect-token "$KONG_TOKEN" \
+      --konnect-addr "$KONG_ADDR" \
+      --konnect-control-plane-name "$RESOLVED_CONTROL_PLANE" \
+      --yes \
+      "$RESOLVED_TARGET_PATH"
+  displayName: deck gateway sync
+  env:
+    KONG_TOKEN: $(KONG_TOKEN)
+    KONG_ADDR: $(KONG_ADDR)
+    RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+    RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)

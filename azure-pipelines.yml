@@ -1,0 +1,115 @@
+trigger: none
+pr: none
+
+parameters:
+- name: mode
+  displayName: Pipeline Mode
+  type: string
+  default: deployment
+  values:
+  - deployment
+  - promotion
+  - rollback
+- name: environment
+  displayName: Target Environment
+  type: string
+  default: Dev
+  values:
+  - Dev
+  - Uat
+  - PreProd
+  - Prod
+  - Dr
+- name: controlPlane
+  displayName: Control Plane
+  type: string
+  default: OnCloud
+  values:
+  - OnPremise
+  - OnCloud
+- name: rollbackBuildId
+  displayName: Rollback source Build ID
+  type: string
+  default: 'not-required'
+
+stages:
+- stage: Validate_Run_Rules
+  displayName: Validate run rules
+  jobs:
+  - job: ValidateRules
+    displayName: Check mode/environment/branch rules
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - bash: |
+        set -euo pipefail
+
+        MODE="${{ parameters.mode }}"
+        ENVIRONMENT="${{ parameters.environment }}"
+        BRANCH="$(Build.SourceBranch)"
+
+        if [ "$MODE" = "deployment" ]; then
+          if [ "$ENVIRONMENT" = "Dev" ] && [ "$BRANCH" = "refs/heads/development" ]; then
+            echo "Valid run: deployment on Dev from development branch."
+            exit 0
+          fi
+          if [ "$ENVIRONMENT" = "Uat" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+            echo "Valid run: deployment on Uat from master branch."
+            exit 0
+          fi
+          echo "Invalid run: deployment supports only Dev@development or Uat@master."
+          exit 1
+        fi
+
+        if [ "$MODE" = "promotion" ]; then
+          if [ "$BRANCH" != "refs/heads/master" ]; then
+            echo "Invalid run: promotion must run from refs/heads/master."
+            exit 1
+          fi
+          if [ "$ENVIRONMENT" = "PreProd" ] || [ "$ENVIRONMENT" = "Prod" ] || [ "$ENVIRONMENT" = "Dr" ]; then
+            echo "Valid run: promotion to ${ENVIRONMENT} from master branch."
+            exit 0
+          fi
+          echo "Invalid run: promotion supports only PreProd, Prod, or Dr."
+          exit 1
+        fi
+
+        if [ "$MODE" = "rollback" ]; then
+          if [ "$ENVIRONMENT" = "Dev" ] && [ "$BRANCH" = "refs/heads/development" ]; then
+            echo "Valid run: rollback on Dev from development branch."
+            exit 0
+          fi
+          if [ "$ENVIRONMENT" = "Uat" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+            echo "Valid run: rollback on Uat from master branch."
+            exit 0
+          fi
+          if [ "$ENVIRONMENT" = "Prod" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+            echo "Valid run: rollback on Prod from master branch."
+            exit 0
+          fi
+          echo "Invalid run: rollback supports only Dev@development, Uat@master, or Prod@master."
+          exit 1
+        fi
+
+        echo "Invalid run: unsupported mode '$MODE'."
+        exit 1
+      displayName: Enforce pipeline guardrails
+
+- ${{ if eq(parameters.mode, 'deployment') }}:
+  - template: pipelines/deployment.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+
+- ${{ if eq(parameters.mode, 'promotion') }}:
+  - template: pipelines/promotion.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+
+- ${{ if eq(parameters.mode, 'rollback') }}:
+  - template: pipelines/rollback.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+      rollbackBuildId: ${{ parameters.rollbackBuildId }}

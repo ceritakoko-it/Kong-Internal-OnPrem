@@ -1,0 +1,39 @@
+﻿jobs:
+- job: Validate
+  displayName: Validate Kong Configuration
+  pool:
+    vmImage: ubuntu-latest
+  steps:
+  - checkout: self
+    clean: true
+    fetchDepth: 0
+    displayName: Checkout self
+
+  - bash: |
+      set -euo pipefail
+      DECK_VERSION="1.52.0"
+      curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
+      tar -xzf deck.tar.gz
+      sudo mv deck /usr/local/bin/deck
+      rm -f deck.tar.gz
+      deck version
+    displayName: Install decK
+
+  - bash: |
+      set -euo pipefail
+      shopt -s nullglob
+
+      DIRS=(kong/*/*)
+      if [ ${#DIRS[@]} -eq 0 ]; then
+        echo "No modular Kong folders found under kong/<env>/<control-plane>."
+        exit 1
+      fi
+
+      for d in "${DIRS[@]}"; do
+        if [ -d "$d" ]; then
+          echo "Validating $d"
+          deck file validate "$d"
+        fi
+      done
+    displayName: Validate modular decK files
+
