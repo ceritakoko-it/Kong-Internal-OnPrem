@@ -1,0 +1,5 @@
+"vaults":
+  - "config":
+      "config_store_id": "b63aa892-bc69-4c57-9452-e2d16750f244"
+    "name": "konnect"
+    "prefix": "identity"

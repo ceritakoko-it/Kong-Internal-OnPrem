@@ -354,6 +354,35 @@ plugins:
   - http
   - https
 - config:
+    content_type: application/json
+    custom_fields_by_lua: {}
+    flush_timeout: null
+    headers: {}
+    http_endpoint: http://10.30.101.22:3100/loki/api/v1/push
+    keepalive: 60000
+    method: POST
+    queue:
+      concurrency_limit: 1
+      initial_retry_delay: 0.01
+      max_batch_size: 1
+      max_bytes: null
+      max_coalescing_delay: 1
+      max_entries: 10000
+      max_retry_delay: 60
+      max_retry_time: 60
+    queue_size: null
+    retry_count: null
+    ssl_verify: null
+    timeout: 10000
+  enabled: true
+  instance_name: dev-onpremise
+  name: http-log
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+- config:
     ai_metrics: true
     bandwidth_metrics: true
     latency_metrics: true

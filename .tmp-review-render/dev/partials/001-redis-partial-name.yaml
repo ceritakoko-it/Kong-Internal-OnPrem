@@ -1,0 +1,15 @@
+"partials":
+  - "config":
+      "cloud_authentication": null
+      "database": 0
+      "host": "10.30.101.18"
+      "password": "dev-redis-takaful@2025"
+      "port": 6379
+      "server_name": null
+      "ssl": false
+      "ssl_verify": false
+      "timeout": 2000
+      "username": null
+    "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
+    "name": "on-premise-dev-redis"
+    "type": "redis-ce"
