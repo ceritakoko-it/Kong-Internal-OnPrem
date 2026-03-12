@@ -1,5 +1,5 @@
 "consumers":
-  - "custom_id": "yexgid3cxbw5mf69"
+  - "custom_id": "__STANDARD_CLAIM_HISTORY_USER_CUSTOM_ID__"
     "groups":
       - "name": "claim_history_group"
     "plugins":

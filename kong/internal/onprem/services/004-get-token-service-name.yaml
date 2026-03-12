@@ -4,6 +4,18 @@
     "host": "__GET_TOKEN_SERVICE_HOST__"
     "name": "__GET_TOKEN_SERVICE_NAME__"
     "path": "/auth/oauth/token"
+    "plugins":
+      - "config":
+          "custom_fields_by_lua": {}
+          "path": "/usr/local/kong/logs/transaction.log"
+          "reopen": false
+        "enabled": true
+        "name": "file-log"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
     "port": 443
     "protocol": "https"
     "read_timeout": 60000

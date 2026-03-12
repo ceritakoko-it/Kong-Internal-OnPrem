@@ -1,0 +1,9 @@
+_format_version: "3.0"
+_konnect:
+  control_plane_name: __CONTROL_PLANE_NAME__
+consumers:
+- custom_id: __AIR_FLIGHT_CONSUMER_CUSTOM_ID__
+  tags:
+  - air-flight
+  - onboarding-template
+  username: __AIR_FLIGHT_CONSUMER_USERNAME__

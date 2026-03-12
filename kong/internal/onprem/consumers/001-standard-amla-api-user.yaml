@@ -1,5 +1,5 @@
 "consumers":
-  - "custom_id": "7xhj9fal3ahau9qh"
+  - "custom_id": "__STANDARD_AMLA_API_USER_CUSTOM_ID__"
     "groups":
       - "name": "amla_api_group"
     "keyauth_credentials":
