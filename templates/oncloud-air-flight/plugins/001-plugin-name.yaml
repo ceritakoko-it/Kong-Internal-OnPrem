@@ -1,0 +1,17 @@
+_format_version: "3.0"
+_konnect:
+  control_plane_name: __CONTROL_PLANE_NAME__
+plugins:
+- config:
+    custom_fields_by_lua: {}
+    path: /usr/local/kong/logs/transaction.log
+    reopen: false
+  enabled: true
+  name: file-log
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+  service:
+    name: air-flight-service

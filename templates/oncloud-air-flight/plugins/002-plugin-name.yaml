@@ -1,0 +1,28 @@
+_format_version: "3.0"
+_konnect:
+  control_plane_name: __CONTROL_PLANE_NAME__
+plugins:
+- config:
+    allow_origin_absent: true
+    credentials: false
+    exposed_headers: null
+    headers: null
+    max_age: null
+    methods:
+    - GET
+    - HEAD
+    - POST
+    - OPTIONS
+    origins:
+    - https://__PORTAL_ORIGIN__
+    preflight_continue: false
+    private_network: false
+  enabled: true
+  name: cors
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+  route:
+    name: air-flight-search-route

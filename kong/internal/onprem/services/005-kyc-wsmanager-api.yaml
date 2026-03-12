@@ -5,6 +5,17 @@
     "name": "KYC-WSManager-API"
     "plugins":
       - "config":
+          "custom_fields_by_lua": {}
+          "path": "/usr/local/kong/logs/transaction.log"
+          "reopen": false
+        "enabled": true
+        "name": "file-log"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+      - "config":
           "anonymous": null
           "audience": null
           "audience_claim":

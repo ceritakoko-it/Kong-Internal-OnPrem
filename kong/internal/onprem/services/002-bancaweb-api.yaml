@@ -3,6 +3,18 @@
     "enabled": true
     "host": "__BANCAWEB_SERVICE_HOST__"
     "name": "BancaWeb-API"
+    "plugins":
+      - "config":
+          "custom_fields_by_lua": {}
+          "path": "/usr/local/kong/logs/transaction.log"
+          "reopen": false
+        "enabled": true
+        "name": "file-log"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
     "port": 80
     "protocol": "http"
     "read_timeout": 60000

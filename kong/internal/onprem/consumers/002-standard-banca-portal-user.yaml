@@ -1,5 +1,5 @@
 "consumers":
-  - "custom_id": "97d2r67zkbigdfm0"
+  - "custom_id": "__STANDARD_BANCA_PORTAL_USER_CUSTOM_ID__"
     "groups":
       - "name": "banca_portal_group"
     "plugins":
