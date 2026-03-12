@@ -26,7 +26,7 @@ Current pattern:
 ## Authoring Rules
 
 1. Do not put environment-specific literals directly in this folder.
-2. Use `__PLACEHOLDER__` tokens for environment-specific values.
+2. Use named template tokens for environment-specific values.
 3. Define the real values in every required `kong/env/*-onprem.env` file.
 4. Keep service-specific routes and plugins inside the owning service file unless there is an existing repo pattern that requires otherwise.
 5. Add global plugins under `plugins/` only when the plugin is not tied to one service.

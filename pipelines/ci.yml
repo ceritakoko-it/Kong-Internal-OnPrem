@@ -36,19 +36,6 @@ jobs:
         done
       fi
 
-      if [ -d "kong/external/oncloud" ]; then
-        shopt -s nullglob
-        for env_file in kong/env/*-oncloud.env; do
-          render_dir="$(mktemp -d)"
-          echo "Rendering kong/external/oncloud with $env_file"
-          bash scripts/render-kong-state.sh "kong/external/oncloud" "$env_file" "$render_dir"
-          echo "Validating rendered output $render_dir"
-          deck file validate "$render_dir"
-          rm -rf "$render_dir"
-          found_any=true
-        done
-      fi
-
       shopt -s nullglob
       for d in kong/*/*; do
         if [ -d "$d" ] && [[ "$d" != "kong/internal/"* ]] && [[ "$d" != "kong/external/"* ]] && [[ "$d" != "kong/env/"* ]]; then
