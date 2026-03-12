@@ -1,10 +1,12 @@
 parameters:
 - name: environment
   type: string
+- name: controlPlane
+  type: string
 
 stages:
-- stage: Promote_To_${{ parameters.environment }}_OnPremise
-  displayName: Promote to ${{ parameters.environment }} - OnPremise
+- stage: Promote_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Promote to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
   condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), or(eq('${{ parameters.environment }}', 'PreProd'), eq('${{ parameters.environment }}', 'Prod'), eq('${{ parameters.environment }}', 'DR')))"
   jobs:
   - job: Promote
@@ -51,6 +53,7 @@ stages:
         set -euo pipefail
 
         TARGET_ENV="${{ parameters.environment }}"
+        SELECTED_CP="${{ parameters.controlPlane }}"
         TARGET_ENV_LOWER="$(echo "$TARGET_ENV" | tr '[:upper:]' '[:lower:]')"
 
         case "$TARGET_ENV_LOWER" in
@@ -88,7 +91,7 @@ stages:
           TARGET_DIR="kong/${TARGET_ENV_LOWER}/${CP_SEGMENT}"
           test -d "$SOURCE_DIR" || { echo "Source modular folder not found: $SOURCE_DIR"; exit 1; }
 
-          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-${SELECTED_CP}"
 
           rm -rf "$TARGET_DIR"
           mkdir -p "$TARGET_DIR"
@@ -231,7 +234,7 @@ stages:
       condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
       inputs:
         targetPath: $(BACKUP_DIR)
-        artifact: kong-backup-${{ parameters.environment }}-OnPremise-$(Build.BuildId)
+        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
         publishLocation: pipeline
 
     - bash: |

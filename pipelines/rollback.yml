@@ -1,14 +1,16 @@
 parameters:
 - name: environment
   type: string
+- name: controlPlane
+  type: string
 - name: rollbackBuildId
   type: string
 - name: rollbackBackupFile
   type: string
 
 stages:
-- stage: Rollback_To_${{ parameters.environment }}_OnPremise
-  displayName: Rollback to ${{ parameters.environment }} - OnPremise
+- stage: Rollback_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Rollback to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
   condition: "and(succeeded(), ne('${{ parameters.rollbackBuildId }}', 'not-required'), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master')), and(eq('${{ parameters.environment }}', 'Prod'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
   jobs:
   - job: Rollback
@@ -73,8 +75,9 @@ stages:
     - bash: |
         set -euo pipefail
         TARGET_ENV="${{ parameters.environment }}"
-        CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
-        ARTIFACT_CP="OnPremise"
+        SELECTED_CP="${{ parameters.controlPlane }}"
+        CONTROL_PLANE_TARGET="${TARGET_ENV}-${SELECTED_CP}"
+        ARTIFACT_CP="${SELECTED_CP}"
 
         ARTIFACT_NAME="kong-backup-${TARGET_ENV}-${ARTIFACT_CP}-${{ parameters.rollbackBuildId }}"
         DOWNLOAD_DIR="$(Pipeline.Workspace)/rollback-backup"
