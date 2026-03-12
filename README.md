@@ -128,6 +128,7 @@ Run via Azure DevOps `Run pipeline` with parameters:
 
 - `mode`: `deployment` or `promotion` or `rollback`
 - `environment`: `Dev`, `Uat`, `PreProd`, `Prod`, `DR`
+- `controlPlane`: `OnPremise`
 - `rollbackBuildId`: required when `mode=rollback`
 - `rollbackBackupFile`: required when `mode=rollback`
 

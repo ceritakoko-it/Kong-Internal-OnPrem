@@ -1,10 +1,12 @@
 parameters:
 - name: environment
   type: string
+- name: controlPlane
+  type: string
 
 stages:
-- stage: Deploy_${{ parameters.environment }}_OnPremise
-  displayName: Deploy ${{ parameters.environment }} - OnPremise
+- stage: Deploy_${{ parameters.environment }}_${{ parameters.controlPlane }}
+  displayName: Deploy ${{ parameters.environment }} - ${{ parameters.controlPlane }}
   condition: "and(succeeded(), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
   jobs:
   - job: Deploy
@@ -50,6 +52,7 @@ stages:
     - bash: |
         set -euo pipefail
         SELECTED_ENV="${{ parameters.environment }}"
+        SELECTED_CP="${{ parameters.controlPlane }}"
         ENV_LOWER="$(echo "$SELECTED_ENV" | tr '[:upper:]' '[:lower:]')"
 
         if [ -d "kong/internal/onprem" ]; then
@@ -67,7 +70,7 @@ stages:
           TARGET_PATH="$RENDERED_DIR"
           USE_RENDERED_STATE="true"
         else
-          CONTROL_PLANE="${SELECTED_ENV}-OnPremise"
+          CONTROL_PLANE="${SELECTED_ENV}-${SELECTED_CP}"
           DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
           MODULE_DIR="kong/${ENV_LOWER}/onprem"
           TEMPLATE_DIR=""
@@ -229,7 +232,7 @@ stages:
       condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
       inputs:
         targetPath: $(BACKUP_DIR)
-        artifact: kong-backup-${{ parameters.environment }}-OnPremise-$(Build.BuildId)
+        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
         publishLocation: pipeline
 
     - bash: |
