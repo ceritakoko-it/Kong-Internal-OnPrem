@@ -1,16 +1,14 @@
 parameters:
 - name: environment
   type: string
-- name: controlPlane
-  type: string
 - name: rollbackBuildId
   type: string
 - name: rollbackBackupFile
   type: string
 
 stages:
-- stage: Rollback_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
-  displayName: Rollback to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+- stage: Rollback_To_${{ parameters.environment }}_OnPremise
+  displayName: Rollback to ${{ parameters.environment }} - OnPremise
   condition: "and(succeeded(), ne('${{ parameters.rollbackBuildId }}', 'not-required'), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master')), and(eq('${{ parameters.environment }}', 'Prod'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
   jobs:
   - job: Rollback
@@ -75,18 +73,8 @@ stages:
     - bash: |
         set -euo pipefail
         TARGET_ENV="${{ parameters.environment }}"
-        SELECTED_CP="${{ parameters.controlPlane }}"
-
-        if [ "$SELECTED_CP" = "OnPremise" ] || [ "$SELECTED_CP" = "onprem" ] || [ "$SELECTED_CP" = "OnPrem" ]; then
-          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
-          ARTIFACT_CP="OnPremise"
-        elif [ "$SELECTED_CP" = "OnCloud" ] || [ "$SELECTED_CP" = "oncloud" ]; then
-          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
-          ARTIFACT_CP="OnCloud"
-        else
-          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
-          exit 1
-        fi
+        CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
+        ARTIFACT_CP="OnPremise"
 
         ARTIFACT_NAME="kong-backup-${TARGET_ENV}-${ARTIFACT_CP}-${{ parameters.rollbackBuildId }}"
         DOWNLOAD_DIR="$(Pipeline.Workspace)/rollback-backup"

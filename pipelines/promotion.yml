@@ -1,12 +1,10 @@
 parameters:
 - name: environment
   type: string
-- name: controlPlane
-  type: string
 
 stages:
-- stage: Promote_To_${{ parameters.environment }}_${{ parameters.controlPlane }}
-  displayName: Promote to ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+- stage: Promote_To_${{ parameters.environment }}_OnPremise
+  displayName: Promote to ${{ parameters.environment }} - OnPremise
   condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'), or(eq('${{ parameters.environment }}', 'PreProd'), eq('${{ parameters.environment }}', 'Prod'), eq('${{ parameters.environment }}', 'DR')))"
   jobs:
   - job: Promote
@@ -54,8 +52,6 @@ stages:
 
         TARGET_ENV="${{ parameters.environment }}"
         TARGET_ENV_LOWER="$(echo "$TARGET_ENV" | tr '[:upper:]' '[:lower:]')"
-        SELECTED_CP="${{ parameters.controlPlane }}"
-        CP_LOWER="$(echo "$SELECTED_CP" | tr '[:upper:]' '[:lower:]')"
 
         case "$TARGET_ENV_LOWER" in
           preprod) SOURCE_ENV="Uat"; SOURCE_ENV_LOWER="uat" ;;
@@ -67,18 +63,11 @@ stages:
             ;;
         esac
 
-        if [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
-          CP_SEGMENT="onprem"
-        elif [ "$CP_LOWER" = "oncloud" ]; then
-          CP_SEGMENT="oncloud"
-        else
-          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
-          exit 1
-        fi
+        CP_SEGMENT="onprem"
 
         TARGET_DUMP_FILE="kong-${TARGET_ENV_LOWER}-${CP_SEGMENT}.yaml"
 
-        if [ "$CP_SEGMENT" = "onprem" ] && [ -d "kong/internal/onprem" ]; then
+        if [ -d "kong/internal/onprem" ]; then
           ENV_FILE="kong/env/${TARGET_ENV_LOWER}-onprem.env"
           TARGET_DIR="$(Pipeline.Workspace)/rendered/${TARGET_ENV_LOWER}/onprem"
           test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
@@ -94,32 +83,12 @@ stages:
           echo "##vso[task.setvariable variable=USE_RENDERED_STATE]true"
           echo "##vso[task.setvariable variable=RESOLVED_TEMPLATE_PATH]kong/internal/onprem"
           echo "##vso[task.setvariable variable=RESOLVED_ENV_FILE]${ENV_FILE}"
-        elif [ "$CP_SEGMENT" = "oncloud" ] && [ -d "kong/external/oncloud" ]; then
-          ENV_FILE="kong/env/${TARGET_ENV_LOWER}-oncloud.env"
-          TARGET_DIR="$(Pipeline.Workspace)/rendered/${TARGET_ENV_LOWER}/oncloud"
-          test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
-          set -a
-          # shellcheck disable=SC1090
-          source "$ENV_FILE"
-          set +a
-          test -n "${CONTROL_PLANE_NAME:-}" || { echo "CONTROL_PLANE_NAME missing in $ENV_FILE"; exit 1; }
-          CONTROL_PLANE_TARGET="$CONTROL_PLANE_NAME"
-
-          echo "Promotion prepared from shared base kong/external/oncloud"
-          echo "Target control plane: $CONTROL_PLANE_TARGET"
-          echo "##vso[task.setvariable variable=USE_RENDERED_STATE]true"
-          echo "##vso[task.setvariable variable=RESOLVED_TEMPLATE_PATH]kong/external/oncloud"
-          echo "##vso[task.setvariable variable=RESOLVED_ENV_FILE]${ENV_FILE}"
         else
           SOURCE_DIR="kong/${SOURCE_ENV_LOWER}/${CP_SEGMENT}"
           TARGET_DIR="kong/${TARGET_ENV_LOWER}/${CP_SEGMENT}"
           test -d "$SOURCE_DIR" || { echo "Source modular folder not found: $SOURCE_DIR"; exit 1; }
 
-          if [ "$CP_SEGMENT" = "onprem" ]; then
-            CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
-          else
-            CONTROL_PLANE_TARGET="${TARGET_ENV}-OnCloud"
-          fi
+          CONTROL_PLANE_TARGET="${TARGET_ENV}-OnPremise"
 
           rm -rf "$TARGET_DIR"
           mkdir -p "$TARGET_DIR"
@@ -262,7 +231,7 @@ stages:
       condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
       inputs:
         targetPath: $(BACKUP_DIR)
-        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
+        artifact: kong-backup-${{ parameters.environment }}-OnPremise-$(Build.BuildId)
         publishLocation: pipeline
 
     - bash: |

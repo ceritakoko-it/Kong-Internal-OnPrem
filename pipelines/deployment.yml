@@ -1,12 +1,10 @@
 parameters:
 - name: environment
   type: string
-- name: controlPlane
-  type: string
 
 stages:
-- stage: Deploy_${{ parameters.environment }}_${{ parameters.controlPlane }}
-  displayName: Deploy ${{ parameters.environment }} - ${{ parameters.controlPlane }}
+- stage: Deploy_${{ parameters.environment }}_OnPremise
+  displayName: Deploy ${{ parameters.environment }} - OnPremise
   condition: "and(succeeded(), or(and(eq('${{ parameters.environment }}', 'Dev'), eq(variables['Build.SourceBranch'], 'refs/heads/development')), and(eq('${{ parameters.environment }}', 'Uat'), eq(variables['Build.SourceBranch'], 'refs/heads/master'))))"
   jobs:
   - job: Deploy
@@ -52,11 +50,9 @@ stages:
     - bash: |
         set -euo pipefail
         SELECTED_ENV="${{ parameters.environment }}"
-        SELECTED_CP="${{ parameters.controlPlane }}"
         ENV_LOWER="$(echo "$SELECTED_ENV" | tr '[:upper:]' '[:lower:]')"
-        CP_LOWER="$(echo "$SELECTED_CP" | tr '[:upper:]' '[:lower:]')"
 
-        if { [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; } && [ -d "kong/internal/onprem" ]; then
+        if [ -d "kong/internal/onprem" ]; then
           DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
           TEMPLATE_DIR="kong/internal/onprem"
           ENV_FILE="kong/env/${ENV_LOWER}-onprem.env"
@@ -70,7 +66,7 @@ stages:
           CONTROL_PLANE="$CONTROL_PLANE_NAME"
           TARGET_PATH="$RENDERED_DIR"
           USE_RENDERED_STATE="true"
-        elif [ "$CP_LOWER" = "onpremise" ] || [ "$CP_LOWER" = "onprem" ]; then
+        else
           CONTROL_PLANE="${SELECTED_ENV}-OnPremise"
           DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
           MODULE_DIR="kong/${ENV_LOWER}/onprem"
@@ -78,31 +74,6 @@ stages:
           ENV_FILE=""
           TARGET_PATH="$MODULE_DIR"
           USE_RENDERED_STATE="false"
-        elif [ "$CP_LOWER" = "oncloud" ] && [ -d "kong/external/oncloud" ]; then
-          DUMP_FILE="kong-${ENV_LOWER}-oncloud.yaml"
-          TEMPLATE_DIR="kong/external/oncloud"
-          ENV_FILE="kong/env/${ENV_LOWER}-oncloud.env"
-          RENDERED_DIR="$(Pipeline.Workspace)/rendered/${ENV_LOWER}/oncloud"
-          test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
-          set -a
-          # shellcheck disable=SC1090
-          source "$ENV_FILE"
-          set +a
-          test -n "${CONTROL_PLANE_NAME:-}" || { echo "CONTROL_PLANE_NAME missing in $ENV_FILE"; exit 1; }
-          CONTROL_PLANE="$CONTROL_PLANE_NAME"
-          TARGET_PATH="$RENDERED_DIR"
-          USE_RENDERED_STATE="true"
-        elif [ "$CP_LOWER" = "oncloud" ]; then
-          CONTROL_PLANE="${SELECTED_ENV}-OnCloud"
-          DUMP_FILE="kong-${ENV_LOWER}-oncloud.yaml"
-          MODULE_DIR="kong/${ENV_LOWER}/oncloud"
-          TEMPLATE_DIR=""
-          ENV_FILE=""
-          TARGET_PATH="$MODULE_DIR"
-          USE_RENDERED_STATE="false"
-        else
-          echo "Unsupported controlPlane parameter: ${SELECTED_CP}"
-          exit 1
         fi
 
         test -n "${TARGET_PATH:-}" || { echo "Resolved target path is empty"; exit 1; }
@@ -258,7 +229,7 @@ stages:
       condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
       inputs:
         targetPath: $(BACKUP_DIR)
-        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
+        artifact: kong-backup-${{ parameters.environment }}-OnPremise-$(Build.BuildId)
         publishLocation: pipeline
 
     - bash: |
