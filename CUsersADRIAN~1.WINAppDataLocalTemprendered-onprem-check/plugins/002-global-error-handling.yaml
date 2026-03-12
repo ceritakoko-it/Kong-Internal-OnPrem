@@ -1,0 +1,107 @@
+"plugins":
+  - "config":
+      "functions":
+        - "return function(status, body, headers)
+
+          \    body = body or {}
+
+
+          \    local is_kong_id = headers[\"x-kong-request-id\"] or headers[\"X-Kong-Request-ID\"]
+
+          \    local auth_header = headers[\"www-authenticate\"] or headers[\"WWW-Authenticate\"] or \"\"
+
+          \    local is_oidc_error = string.find(auth_header, \"konghq.com\") ~= nil
+
+
+          \    if is_kong_id or is_oidc_error then
+
+          \        if status == 400 then
+
+          \            body.internal_code = 8400
+
+          \            body.error_type = \"API_INVALID_REQUEST\"
+
+          \            body.message = \"Invalid request parameters\"
+
+          \        elseif status == 401 then
+
+          \            body.internal_code = 8401
+
+          \            body.error_type = \"API_UNAUTHORIZED\"
+
+          \            body.message = \"Authentication failed\"
+
+          \        elseif status == 403 then
+
+          \            body.internal_code = 8403
+
+          \            body.error_type = \"API_FORBIDDEN\"
+
+          \            body.message = \"Insufficient permissions\"
+
+          \        elseif status == 404 then
+
+          \            body.internal_code = 8404
+
+          \            body.error_type = \"API_NOT_FOUND\"
+
+          \            body.message = \"Resource not found\"
+
+          \        elseif status == 409 then
+
+          \            body.internal_code = 8409
+
+          \            body.error_type = \"API_DUPLICATE_REQUEST\"
+
+          \            body.message = \"Duplicate idempotency key\"
+
+          \        elseif status == 422 then
+
+          \            body.internal_code = 8422
+
+          \            body.error_type = \"API_VALIDATION_ERROR\"
+
+          \            body.message = \"Validation failed\"
+
+          \        elseif status == 429 then
+
+          \            body.internal_code = 8429
+
+          \            body.error_type = \"API_RATE_LIMIT_EXCEEDED\"
+
+          \            body.message = \"Too many requests\"
+
+          \        elseif status == 500 then
+
+          \            body.internal_code = 8500
+
+          \            body.error_type = \"API_INTERNAL_ERROR\"
+
+          \            body.message = \"Internal server error\"
+
+          \        elseif status == 503 then
+
+          \            body.internal_code = 8503
+
+          \            body.error_type = \"API_SERVICE_UNAVAILABLE\"
+
+          \            body.message = \"Service temporarily unavailable\"
+
+          \        end
+
+          \    end
+
+
+          \    return status, body, headers
+
+          end"
+      "handle_unexpected": false
+      "handle_unknown": false
+    "enabled": true
+    "instance_name": "Global-Error-Handling"
+    "name": "exit-transformer"
+    "protocols":
+      - "grpc"
+      - "grpcs"
+      - "http"
+      - "https"

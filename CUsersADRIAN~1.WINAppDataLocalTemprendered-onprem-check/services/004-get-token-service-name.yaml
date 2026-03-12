@@ -1,0 +1,38 @@
+"services":
+  - "connect_timeout": 60000
+    "enabled": true
+    "host": "mp7mutb2n53dfygk.sg.identity.konghq.com"
+    "name": "Dev-OnPremise-Get-Token"
+    "path": "/auth/oauth/token"
+    "plugins":
+      - "config":
+          "custom_fields_by_lua": {}
+          "path": "/usr/local/kong/logs/transaction.log"
+          "reopen": false
+        "enabled": true
+        "name": "file-log"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+    "port": 443
+    "protocol": "https"
+    "read_timeout": 60000
+    "retries": 5
+    "routes":
+      - "hosts":
+          - "kong-api-dev.takaful-malaysia.com.my:443"
+        "https_redirect_status_code": 426
+        "name": "OIDC-Get-Token"
+        "path_handling": "v0"
+        "paths":
+          - "/api/token"
+        "preserve_host": false
+        "protocols":
+          - "https"
+        "regex_priority": 0
+        "request_buffering": true
+        "response_buffering": true
+        "strip_path": true
+    "write_timeout": 60000
