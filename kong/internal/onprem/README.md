@@ -17,8 +17,9 @@ This folder is the only shared source of truth for `OnPrem` configuration.
 Current pattern:
 
 - `services/` contains the service definition
-- `services/` also contains service-specific `routes[]`
-- `services/` also contains service-level and route-level `plugins[]`
+- `routes/` contains service-specific `routes[]`
+- `services/` contains service-level `plugins[]`
+- `routes/` also contains route-level `plugins[]`
 - `plugins/` is reserved for global plugins only
 - `consumers/` contains shared consumer definitions
 - consumer `custom_id` values are parameterized through env files when they differ by environment
@@ -28,7 +29,7 @@ Current pattern:
 1. Do not put environment-specific literals directly in this folder.
 2. Use named template tokens for environment-specific values.
 3. Define the real values in every required `kong/env/*-onprem.env` file.
-4. Keep service-specific routes and plugins inside the owning service file unless there is an existing repo pattern that requires otherwise.
+4. Keep service-specific routes in `routes/` and service-specific plugins on the owning service or route object.
 5. Add global plugins under `plugins/` only when the plugin is not tied to one service.
 
 ## Common Parameterized Values

@@ -35,6 +35,7 @@ Important `OnPrem` paths:
 - `kong/internal/onprem/consumers/`
 - `kong/internal/onprem/partials/`
 - `kong/internal/onprem/plugins/`
+- `kong/internal/onprem/routes/`
 - `kong/internal/onprem/services/`
 - `kong/internal/onprem/vaults/`
 - `kong/env/*-onprem.env`
@@ -43,10 +44,10 @@ Current object ownership:
 
 - `services/`:
   primary place for service definitions
+- `routes/`:
+  contains route definitions attached to services through `service.name`
 - `services/`:
-  also contains service-specific `routes[]`
-- `services/`:
-  also contains service-level and route-level `plugins[]`
+  contains service-level plugins only
 - `plugins/`:
   only for truly global plugins
 - `consumers/`:
@@ -59,8 +60,8 @@ Current object ownership:
 Follow these rules when making changes:
 
 1. Put service-specific changes in the matching file under `kong/internal/onprem/services/`.
-2. Keep routes nested inside the owning service unless the repo already uses a different pattern for that object.
-3. Keep service-specific plugins nested inside the service or route.
+2. Keep service definitions in `kong/internal/onprem/services/` and route definitions in `kong/internal/onprem/routes/`.
+3. Keep service-specific plugins nested inside the owning service or route object.
 4. Use standalone files under `kong/internal/onprem/plugins/` only for global plugins.
 5. Do not hardcode environment-specific values in `kong/internal/onprem/`.
 6. Use `__PLACEHOLDER__` tokens and define the real values in every required `kong/env/*-onprem.env` file.
@@ -87,10 +88,14 @@ The usual `OnPrem` service file now contains:
 
 - one `services[]` entry
 - service-level plugins such as `file-log`, `openid-connect`, or other API-specific plugins
-- nested `routes[]`
+
+The usual `OnPrem` route file now contains:
+
+- one or more `routes[]` entries
+- the owning `service.name` reference for each route
 - route-level plugins such as `request-transformer`, `proxy-cache-advanced`, `pre-function`, or `post-function`
 
-That means adding a new API usually requires editing one service file, not creating separate route and plugin files across multiple folders.
+That means adding or changing an API usually requires touching the matching service file and route file, not embedding routes inside the service object.
 
 ## Current Consumer Pattern
 
@@ -218,6 +223,6 @@ Before creating a PR or deployment run:
 1. Confirm changes were made under `kong/internal/onprem/` or `kong/env/*-onprem.env`.
 2. Confirm no environment-specific literals were added to shared state.
 3. Confirm every new `__PLACEHOLDER__` has values in all required env files.
-4. Confirm service-specific routes and plugins are kept inside the owning service file.
+4. Confirm service-specific routes are stored under `kong/internal/onprem/routes/` and point to the correct `service.name`.
 5. Confirm any new consumer `custom_id` placeholder exists in all env files.
 6. Run `deck file validate` against the rendered or target state used by the pipeline.
