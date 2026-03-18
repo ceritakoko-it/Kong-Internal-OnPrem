@@ -2,7 +2,7 @@
   - "config":
       "add":
         "headers":
-          - "Strict-Transport-Security: max-age=31536000; includeSubDomains"
+          - "Strict-Transport-Security:max-age=31536000; includeSubDomains"
         "json": []
         "json_types": []
       "append":
