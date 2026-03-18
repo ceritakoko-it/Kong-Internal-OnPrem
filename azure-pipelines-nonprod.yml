@@ -1,0 +1,83 @@
+trigger: none
+pr: none
+
+parameters:
+- name: mode
+  displayName: Pipeline Mode
+  type: string
+  default: deployment
+  values:
+  - deployment
+  - rollback
+- name: environment
+  displayName: Target Environment
+  type: string
+  default: Dev
+  values:
+  - Dev
+- name: controlPlane
+  displayName: Control Plane
+  type: string
+  default: OnPremise
+  values:
+  - OnPremise
+- name: rollbackBuildId
+  displayName: Rollback source Run/Build ID
+  type: string
+  default: 'not-required'
+- name: rollbackBackupFile
+  displayName: Rollback backup YAML filename
+  type: string
+  default: 'not-required'
+
+stages:
+- stage: Validate_Run_Rules
+  displayName: Validate run rules
+  jobs:
+  - job: ValidateRules
+    displayName: Check mode/environment/branch rules
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - bash: |
+        set -euo pipefail
+
+        MODE="${{ parameters.mode }}"
+        ENVIRONMENT="${{ parameters.environment }}"
+        BRANCH="$(Build.SourceBranch)"
+
+        if [ "$MODE" = "deployment" ]; then
+          if [ "$ENVIRONMENT" = "Dev" ] && [ "$BRANCH" = "refs/heads/development" ]; then
+            echo "Valid run: deployment on Dev from development branch."
+            exit 0
+          fi
+          echo "Invalid run: nonprod deployment supports only Dev@development."
+          exit 1
+        fi
+
+        if [ "$MODE" = "rollback" ]; then
+          if [ "$ENVIRONMENT" = "Dev" ] && [ "$BRANCH" = "refs/heads/development" ]; then
+            echo "Valid run: rollback on Dev from development branch."
+            exit 0
+          fi
+          echo "Invalid run: nonprod rollback supports only Dev@development."
+          exit 1
+        fi
+
+        echo "Invalid run: unsupported mode '$MODE'."
+        exit 1
+      displayName: Enforce pipeline guardrails
+
+- ${{ if eq(parameters.mode, 'deployment') }}:
+  - template: pipelines/deployment.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+
+- ${{ if eq(parameters.mode, 'rollback') }}:
+  - template: pipelines/rollback.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+      rollbackBuildId: ${{ parameters.rollbackBuildId }}
+      rollbackBackupFile: ${{ parameters.rollbackBackupFile }}

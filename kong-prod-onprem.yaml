@@ -1,6 +1,6 @@
 _format_version: "3.0"
 _konnect:
-  control_plane_name: Dev-OnPremise
+  control_plane_name: Prod-OnPremise
 certificates:
 - cert: |-
     -----BEGIN CERTIFICATE-----
@@ -102,24 +102,24 @@ certificates:
     rwiJrUUi85gGJ58ws8837xJLq059ChW9Hw8ktn/IcfCZvCj1ymBK
     -----END RSA PRIVATE KEY-----
   snis:
-  - name: int-api-dev.takaful-malaysia.com.my
+  - name: int-api-prod.example.com
     tags:
-    - dev
+    - prod
     - onprem
     - internal
-  - name: kong-api-dev.takaful-malaysia.com.my
+  - name: kong-api-prod.example.com
     tags:
-    - dev
+    - prod
     - public
     - onprem
   tags:
-  - dev
+  - prod
 consumer_groups:
 - name: amla_api_group
 - name: banca_portal_group
 - name: claim_history_group
 consumers:
-- custom_id: 7xhj9fal3ahau9qh
+- custom_id: cxdzc35zhi1cgmk3
   groups:
   - name: amla_api_group
   keyauth_credentials:
@@ -147,7 +147,7 @@ consumers:
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
-      name: on-premise-dev-redis
+      name: on-premise-prod-redis
       path: config.redis
     protocols:
     - grpc
@@ -155,7 +155,7 @@ consumers:
     - http
     - https
   username: standard_amla_api_user
-- custom_id: 97d2r67zkbigdfm0
+- custom_id: w70v1jb45x71uh1i
   groups:
   - name: banca_portal_group
   plugins:
@@ -181,7 +181,7 @@ consumers:
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
-      name: on-premise-dev-redis
+      name: on-premise-prod-redis
       path: config.redis
     protocols:
     - grpc
@@ -189,7 +189,7 @@ consumers:
     - http
     - https
   username: standard_banca_portal_user
-- custom_id: yexgid3cxbw5mf69
+- custom_id: 8zs777mf2x6osaou
   groups:
   - name: claim_history_group
   plugins:
@@ -215,7 +215,7 @@ consumers:
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
-      name: on-premise-dev-redis
+      name: on-premise-prod-redis
       path: config.redis
     protocols:
     - grpc
@@ -227,8 +227,8 @@ partials:
 - config:
     cloud_authentication: null
     database: 0
-    host: 10.30.101.18
-    password: dev-redis-takaful@2025
+    host: 127.0.0.31
+    password: '{vault://identity/redis-cache-password}'
     port: 6379
     server_name: null
     ssl: false
@@ -236,7 +236,7 @@ partials:
     timeout: 2000
     username: null
   id: 498c2db2-f243-4fab-9743-7ef0bfb82512
-  name: on-premise-dev-redis
+  name: on-premise-prod-redis
   type: redis-ce
 - config:
     cloud_authentication: null
@@ -245,10 +245,10 @@ partials:
     connect_timeout: 2000
     connection_is_proxied: false
     database: 0
-    host: 10.30.101.18
+    host: 127.0.0.31
     keepalive_backlog: 0
     keepalive_pool_size: 256
-    password: dev-redis-takaful@2025
+    password: '{vault://identity/redis-cache-password}'
     port: 6379
     read_timeout: 2000
     send_timeout: 2000
@@ -262,7 +262,7 @@ partials:
     ssl_verify: false
     username: null
   id: 4b4dbb79-bbab-4698-89cb-7d0dcf304e80
-  name: on-premise-dev-redis-cache
+  name: on-premise-prod-redis-cache
   type: redis-ee
 plugins:
 - config:
@@ -295,54 +295,50 @@ plugins:
     functions:
     - |-
       return function(status, body, headers)
-          if type(body) ~= "table" then
-              body = {}
-          end
+          body = body or {}
 
-          if headers == nil then
-              headers = {}
-          end
+          local is_kong_id = headers["x-kong-request-id"] or headers["X-Kong-Request-ID"]
+          local auth_header = headers["www-authenticate"] or headers["WWW-Authenticate"] or ""
+          local is_oidc_error = string.find(auth_header, "konghq.com") ~= nil
 
-          if status == 400 then
-              body.internal_code = 8400
-              body.error_type = "API_INVALID_REQUEST"
-              body.message = "Invalid request parameters"
-          elseif status == 401 then
-              body.internal_code = 8401
-              body.error_type = "API_UNAUTHORIZED"
-              body.message = "Authentication failed"
-          elseif status == 403 then
-              body.internal_code = 8403
-              body.error_type = "API_FORBIDDEN"
-              body.message = "Insufficient permissions"
-          elseif status == 404 then
-              body.internal_code = 8404
-              body.error_type = "API_NOT_FOUND"
-              body.message = "Resource not found"
-          elseif status == 409 then
-              body.internal_code = 8409
-              body.error_type = "API_DUPLICATE_REQUEST"
-              body.message = "Duplicate idempotency key"
-          elseif status == 422 then
-              body.internal_code = 8422
-              body.error_type = "API_VALIDATION_ERROR"
-              body.message = "Validation failed"
-          elseif status == 429 then
-              body.internal_code = 8429
-              body.error_type = "API_RATE_LIMIT_EXCEEDED"
-              body.message = "Too many requests"
-          elseif status == 500 then
-              body.internal_code = 8500
-              body.error_type = "API_INTERNAL_ERROR"
-              body.message = "Internal server error"
-          elseif status == 503 then
-              body.internal_code = 8503
-              body.error_type = "API_SERVICE_UNAVAILABLE"
-              body.message = "Service temporarily unavailable"
-          elseif status == 504 then
-              body.internal_code = 8504
-              body.error_type = "API_GATEWAY_TIMEOUT"
-              body.message = "The upstream server is timing out"
+          if is_kong_id or is_oidc_error then
+              if status == 400 then
+                  body.internal_code = 8400
+                  body.error_type = "API_INVALID_REQUEST"
+                  body.message = "Invalid request parameters"
+              elseif status == 401 then
+                  body.internal_code = 8401
+                  body.error_type = "API_UNAUTHORIZED"
+                  body.message = "Authentication failed"
+              elseif status == 403 then
+                  body.internal_code = 8403
+                  body.error_type = "API_FORBIDDEN"
+                  body.message = "Insufficient permissions"
+              elseif status == 404 then
+                  body.internal_code = 8404
+                  body.error_type = "API_NOT_FOUND"
+                  body.message = "Resource not found"
+              elseif status == 409 then
+                  body.internal_code = 8409
+                  body.error_type = "API_DUPLICATE_REQUEST"
+                  body.message = "Duplicate idempotency key"
+              elseif status == 422 then
+                  body.internal_code = 8422
+                  body.error_type = "API_VALIDATION_ERROR"
+                  body.message = "Validation failed"
+              elseif status == 429 then
+                  body.internal_code = 8429
+                  body.error_type = "API_RATE_LIMIT_EXCEEDED"
+                  body.message = "Too many requests"
+              elseif status == 500 then
+                  body.internal_code = 8500
+                  body.error_type = "API_INTERNAL_ERROR"
+                  body.message = "Internal server error"
+              elseif status == 503 then
+                  body.internal_code = 8503
+                  body.error_type = "API_SERVICE_UNAVAILABLE"
+                  body.message = "Service temporarily unavailable"
+              end
           end
 
           return status, body, headers
@@ -352,27 +348,6 @@ plugins:
   enabled: true
   instance_name: Global-Error-Handling
   name: exit-transformer
-  protocols:
-  - grpc
-  - grpcs
-  - http
-  - https
-- config:
-    access:
-    - kong.log.set_serialize_value("request.body", kong.request.get_body())
-    body_filter: []
-    certificate: []
-    functions: []
-    header_filter: []
-    log:
-    - kong.log.set_serialize_value("response.body", kong.service.response.get_body())
-    rewrite: []
-    ws_client_frame: []
-    ws_close: []
-    ws_handshake: []
-    ws_upstream_frame: []
-  enabled: true
-  name: pre-function
   protocols:
   - grpc
   - grpcs
@@ -396,7 +371,7 @@ plugins:
 - config:
     add:
       headers:
-      - Strict-Transport-Security:max-age=31536000; includeSubDomains
+      - 'Strict-Transport-Security: max-age=31536000; includeSubDomains'
       json: []
       json_types: []
     append:
@@ -421,7 +396,7 @@ plugins:
 services:
 - connect_timeout: 60000
   enabled: true
-  host: 10.30.101.238
+  host: upstream.com
   name: AML-Rest-Services
   plugins:
   - config:
@@ -596,7 +571,7 @@ services:
       introspection_post_args_names: null
       introspection_post_args_values: null
       introspection_token_param_name: token
-      issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+      issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
       issuers_allowed: null
       jwt_session_claim: sid
       jwt_session_cookie: null
@@ -810,7 +785,7 @@ services:
   retries: 5
   routes:
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: aml-restsvc-route
     path_handling: v0
@@ -855,7 +830,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: aml-restsvcab-scan
     path_handling: v0
@@ -902,7 +877,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
-  host: wintelappuat.takaful-malaysia.com.my
+  host: bancaweb-prod.example.internal
   name: BancaWeb-API
   plugins:
   - config:
@@ -922,7 +897,7 @@ services:
   retries: 5
   routes:
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: banca-auth-authenticate-route
     path_handling: v0
@@ -1089,7 +1064,7 @@ services:
         introspection_post_args_names: null
         introspection_post_args_values: null
         introspection_token_param_name: token
-        issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+        issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
         issuers_allowed: null
         jwt_session_claim: sid
         jwt_session_cookie: null
@@ -1400,7 +1375,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: banca-auth-login-route
     path_handling: v0
@@ -1567,7 +1542,7 @@ services:
         introspection_post_args_names: null
         introspection_post_args_values: null
         introspection_token_param_name: token
-        issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+        issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
         issuers_allowed: null
         jwt_session_claim: sid
         jwt_session_cookie: null
@@ -1844,7 +1819,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: banca-web-calculate-route
     path_handling: v0
@@ -2011,7 +1986,7 @@ services:
         introspection_post_args_names: null
         introspection_post_args_values: null
         introspection_token_param_name: token
-        issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+        issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
         issuers_allowed: null
         jwt_session_claim: sid
         jwt_session_cookie: null
@@ -2322,7 +2297,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my
+    - kong-api-prod.example.com
     https_redirect_status_code: 426
     name: banca-web-quotation-route
     path_handling: v0
@@ -2489,7 +2464,7 @@ services:
         introspection_post_args_names: null
         introspection_post_args_values: null
         introspection_token_param_name: token
-        issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+        issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
         issuers_allowed: null
         jwt_session_claim: sid
         jwt_session_cookie: null
@@ -2740,28 +2715,11 @@ services:
               kong.ctx.shared.upstream_token = auth_header
               kong.service.request.set_header("Authorization", kong_auth)
           end
-
-
-          kong.service.request.enable_buffering()
-
-          local body, err = kong.request.get_raw_body()
-          if body and body ~= "" then
-              kong.log.set_serialize_value("request.body", body)
-          else
-              kong.log.set_serialize_value("request.body", "no request body")
-          end
         body_filter: []
         certificate: []
         functions: []
         header_filter: []
-        log:
-        - |-
-          local raw_response_body = kong.service.response.get_raw_body()
-          if raw_response_body and raw_response_body ~= "" then
-              kong.log.set_serialize_value("response.body", raw_response_body)
-          else
-              kong.log.set_serialize_value("response.body", "no response body")
-          end
+        log: []
         rewrite: []
         ws_client_frame: []
         ws_close: []
@@ -2819,7 +2777,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
-  host: bancaapiuat.mytakafulpartners.com.my
+  host: claimhistory-storm-prod.example.internal
   name: ClaimHistory-Storm-API
   plugins:
   - config:
@@ -2994,7 +2952,7 @@ services:
       introspection_post_args_names: null
       introspection_post_args_values: null
       introspection_token_param_name: token
-      issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+      issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
       issuers_allowed: null
       jwt_session_claim: sid
       jwt_session_cookie: null
@@ -3208,7 +3166,7 @@ services:
   retries: 5
   routes:
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: claimhistory-storm-account-route
     path_handling: v0
@@ -3253,7 +3211,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: claimhistory-storm-velogica-route
     path_handling: v0
@@ -3301,44 +3259,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
-  host: mp7mutb2n53dfygk.sg.identity.konghq.com
-  name: Dev-OnPremise-Get-Token
-  path: /auth/oauth/token
-  plugins:
-  - config:
-      custom_fields_by_lua: {}
-      path: /usr/local/kong/logs/transaction.log
-      reopen: false
-    enabled: true
-    name: file-log
-    protocols:
-    - grpc
-    - grpcs
-    - http
-    - https
-  port: 443
-  protocol: https
-  read_timeout: 60000
-  retries: 5
-  routes:
-  - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
-    https_redirect_status_code: 426
-    name: OIDC-Get-Token
-    path_handling: v0
-    paths:
-    - /api/token
-    preserve_host: false
-    protocols:
-    - https
-    regex_priority: 0
-    request_buffering: true
-    response_buffering: true
-    strip_path: true
-  write_timeout: 60000
-- connect_timeout: 60000
-  enabled: true
-  host: 10.30.101.166
+  host: kyc-wsmanager-prod.example.internal
   name: KYC-WSManager-API
   plugins:
   - config:
@@ -3513,7 +3434,7 @@ services:
       introspection_post_args_names: null
       introspection_post_args_values: null
       introspection_token_param_name: token
-      issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+      issuer: https://j7a9opd2nc7p4xmq.sg.identity.konghq.com/auth
       issuers_allowed: null
       jwt_session_claim: sid
       jwt_session_cookie: null
@@ -3727,7 +3648,7 @@ services:
   retries: 5
   routes:
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: kyc-wsmanager-input-add-route
     path_handling: v0
@@ -3763,7 +3684,7 @@ services:
       name: proxy-cache-advanced
       partials:
       - id: 4b4dbb79-bbab-4698-89cb-7d0dcf304e80
-        name: on-premise-dev-redis-cache
+        name: on-premise-prod-redis-cache
         path: config.redis
       protocols:
       - grpc
@@ -3808,7 +3729,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
@@ -3853,7 +3774,7 @@ services:
     response_buffering: true
     strip_path: true
   - hosts:
-    - kong-api-dev.takaful-malaysia.com.my:443
+    - kong-api-prod.example.com:443
     https_redirect_status_code: 426
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
@@ -3898,8 +3819,45 @@ services:
     response_buffering: true
     strip_path: true
   write_timeout: 60000
+- connect_timeout: 60000
+  enabled: true
+  host: j7a9opd2nc7p4xmq.sg.identity.konghq.com
+  name: Prod-OnPremise-Get-Token
+  path: /auth/oauth/token
+  plugins:
+  - config:
+      custom_fields_by_lua: {}
+      path: /usr/local/kong/logs/transaction.log
+      reopen: false
+    enabled: true
+    name: file-log
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+  port: 443
+  protocol: https
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - hosts:
+    - kong-api-prod.example.com:443
+    https_redirect_status_code: 426
+    name: OIDC-Get-Token
+    path_handling: v0
+    paths:
+    - /api/token
+    preserve_host: false
+    protocols:
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
 vaults:
 - config:
-    config_store_id: b63aa892-bc69-4c57-9452-e2d16750f244
+    config_store_id: 882cadb2-4cf1-48d9-a388-e5c88693d0fa
   name: konnect
   prefix: identity

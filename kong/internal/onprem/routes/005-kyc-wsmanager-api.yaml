@@ -36,7 +36,7 @@
         "enabled": true
         "name": "proxy-cache-advanced"
         "partials":
-          - "id": "4b4dbb79-bbab-4698-89cb-7d0dcf304e80"
+          - "id": "__REDIS_CACHE_PARTIAL_ID__"
             "name": "__REDIS_CACHE_PARTIAL_NAME__"
             "path": "config.redis"
         "protocols":
