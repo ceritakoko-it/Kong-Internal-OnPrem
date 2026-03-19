@@ -21,7 +21,6 @@
       "server_name": null
       "ssl": false
       "ssl_verify": false
-      "timeout": 2000
       "username": null
     "id": "__REDIS_PARTIAL_ID__"
     "name": "__REDIS_PARTIAL_NAME__"
