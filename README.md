@@ -5,7 +5,7 @@ This repository is the source of truth for Kong decK configuration and promotion
 For `OnPrem`, the current mechanism is:
 
 - shared base state lives in `kong/internal/onprem/`
-- environment values live in `kong/env/*-onprem.env`
+- environment values live in `kong/env/system/*.env` and `kong/env/user/*-onprem.env`
 - the pipeline renders the shared base with the selected env file at runtime
 - the rendered output is what `deck file validate`, `deck gateway diff`, and `deck gateway sync` operate on
 
@@ -16,12 +16,16 @@ The `OnPrem` control plane is no longer maintained as separate environment folde
 Use:
 
 - shared config: `kong/internal/onprem/`
-- environment files:
-  - `kong/env/dev-onprem.env`
-  - `kong/env/uat-onprem.env`
-  - `kong/env/preprod-onprem.env`
-  - `kong/env/prod-onprem.env`
-  - `kong/env/dr-onprem.env`
+- system env files:
+  - `kong/env/system/dev-system.env`
+  - `kong/env/system/uat-system.env`
+  - `kong/env/system/prod-system.env`
+  - `kong/env/system/dr-system.env`
+- user env files:
+  - `kong/env/user/dev-onprem.env`
+  - `kong/env/user/uat-onprem.env`
+  - `kong/env/user/prod-onprem.env`
+  - `kong/env/user/dr-onprem.env`
 
 Do not create or maintain `kong/<env>/onprem` state folders for active `OnPrem` work.
 
@@ -38,7 +42,8 @@ Important `OnPrem` paths:
 - `kong/internal/onprem/routes/`
 - `kong/internal/onprem/services/`
 - `kong/internal/onprem/vaults/`
-- `kong/env/*-onprem.env`
+- `kong/env/system/`
+- `kong/env/user/`
 
 Current object ownership:
 
@@ -51,7 +56,7 @@ Current object ownership:
 - `plugins/`:
   only for truly global plugins
 - `consumers/`:
-  consumer definitions, with `custom_id` parameterized through env files
+  consumer definitions, with `custom_id` parameterized through system env files
 - `partials/`:
   shared redis and cache partials referenced by plugins
 
@@ -64,7 +69,7 @@ Follow these rules when making changes:
 3. Keep service-specific plugins nested inside the owning service or route object.
 4. Use standalone files under `kong/internal/onprem/plugins/` only for global plugins.
 5. Do not hardcode environment-specific values in `kong/internal/onprem/`.
-6. Use `__PLACEHOLDER__` tokens and define the real values in every required `kong/env/*-onprem.env` file.
+6. Use `__PLACEHOLDER__` tokens and define the real values in the matching `kong/env/system/*.env` or `kong/env/user/*-onprem.env` files.
 
 Examples of parameterized values already in use:
 
@@ -105,7 +110,7 @@ Current rules:
 
 - `username` stays in shared config
 - `custom_id` must be parameterized if it differs by environment
-- the matching env variable must exist in every `kong/env/*-onprem.env` file
+- the matching env variable must exist in every required `kong/env/system/*.env` or `kong/env/user/*-onprem.env` file
 
 Current parameter names include:
 
@@ -152,7 +157,10 @@ Without these values, deployment, promotion, and rollback will fail.
 
 ## Environment Files
 
-Each env file provides the values used to render `kong/internal/onprem/`.
+Each rendered environment is composed from:
+
+- `kong/env/system/<env>-system.env`
+- `kong/env/user/<env>-onprem.env`
 
 Values currently parameterized include:
 
@@ -173,6 +181,9 @@ Values currently parameterized include:
 - `REDIS_PARTIAL_NAME`
 - `REDIS_CACHE_PARTIAL_NAME`
 - `VAULT_CONFIG_STORE_ID`
+- `STANDARD_AMLA_API_RATE_LIMIT`
+- `STANDARD_BANCA_PORTAL_RATE_LIMIT`
+- `STANDARD_CLAIM_HISTORY_RATE_LIMIT`
 - `STANDARD_AMLA_API_USER_CUSTOM_ID`
 - `STANDARD_BANCA_PORTAL_USER_CUSTOM_ID`
 - `STANDARD_CLAIM_HISTORY_USER_CUSTOM_ID`
@@ -181,7 +192,8 @@ Notes:
 
 - `PUBLIC_HOST_PRIMARY` is required
 - `PUBLIC_HOST_SECONDARY` is optional
-- consumer custom IDs may differ by environment and must stay in env files
+- user-editable values such as hosts and standard rate limits belong in `kong/env/user/`
+- internal values such as consumer custom IDs and Redis partial IDs belong in `kong/env/system/`
 
 ## Deployment And Promotion Flow
 
@@ -191,7 +203,7 @@ Shared high-level behavior:
 2. Install decK.
 3. Validate required secrets.
 4. Resolve control plane and env file.
-5. Render `kong/internal/onprem` with the selected `kong/env/*-onprem.env`.
+5. Render `kong/internal/onprem` with the selected `kong/env/user/*-onprem.env`, which is merged with the matching `kong/env/system/*-system.env`.
 6. Run `deck gateway ping`, `deck file validate`, and `diff` on the rendered output.
 7. If changes exist, back up current state.
 8. Publish the backup artifact.
@@ -220,7 +232,7 @@ High-level flow:
 
 Before creating a PR or deployment run:
 
-1. Confirm changes were made under `kong/internal/onprem/` or `kong/env/*-onprem.env`.
+1. Confirm changes were made under `kong/internal/onprem/`, `kong/env/system/`, or `kong/env/user/`.
 2. Confirm no environment-specific literals were added to shared state.
 3. Confirm every new `__PLACEHOLDER__` has values in all required env files.
 4. Confirm service-specific routes are stored under `kong/internal/onprem/routes/` and point to the correct `service.name`.

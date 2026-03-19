@@ -10,9 +10,9 @@
           "fault_tolerant": true
           "header_name": null
           "hide_client_headers": false
-          "hour": 100
+          "hour": __STANDARD_BANCA_PORTAL_RATE_LIMIT_HOUR__
           "limit_by": "consumer"
-          "minute": 100
+          "minute": __STANDARD_BANCA_PORTAL_RATE_LIMIT_MINUTE__
           "month": null
           "path": null
           "policy": "redis"

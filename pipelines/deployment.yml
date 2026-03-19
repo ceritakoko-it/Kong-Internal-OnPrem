@@ -58,10 +58,14 @@ stages:
         if [ -d "kong/internal/onprem" ]; then
           DUMP_FILE="kong-${ENV_LOWER}-onprem.yaml"
           TEMPLATE_DIR="kong/internal/onprem"
-          ENV_FILE="kong/env/${ENV_LOWER}-onprem.env"
+          ENV_FILE="kong/env/user/${ENV_LOWER}-onprem.env"
+          SYSTEM_ENV_FILE="kong/env/system/${ENV_LOWER}-system.env"
           RENDERED_DIR="$(Pipeline.Workspace)/rendered/${ENV_LOWER}/onprem"
           test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
+          test -f "$SYSTEM_ENV_FILE" || { echo "System file not found: $SYSTEM_ENV_FILE"; exit 1; }
           set -a
+          # shellcheck disable=SC1090
+          source "$SYSTEM_ENV_FILE"
           # shellcheck disable=SC1090
           source "$ENV_FILE"
           set +a

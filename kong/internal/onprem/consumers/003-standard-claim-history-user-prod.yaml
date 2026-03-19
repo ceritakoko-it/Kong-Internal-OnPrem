@@ -9,8 +9,8 @@
           "hide_client_headers": false
           "identifier": "consumer"
           "limit":
-            - 100
-            - 100
+            - __STANDARD_CLAIM_HISTORY_RATE_LIMIT_MINUTE__
+            - __STANDARD_CLAIM_HISTORY_RATE_LIMIT_HOUR__
           "namespace": "standard_claim_history_user_rate_limit"
           "retry_after_jitter_max": 0
           "strategy": "redis"

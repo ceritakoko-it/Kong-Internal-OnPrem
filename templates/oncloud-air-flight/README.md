@@ -30,7 +30,7 @@ Included samples:
 3. Add service-level plugins inside the service file and route-level plugins inside the route file when they belong only to that API.
 4. Add standalone files under `kong/internal/onprem/plugins/` only for truly global plugins.
 5. Add the `consumer` or `consumer-group` if the API is accessed by a known internal client.
-6. Add or update `kong/env/*-onprem.env` if the new config needs environment-specific values.
+6. Add or update the matching `kong/env/system/*.env` or `kong/env/user/*-onprem.env` file if the new config needs environment-specific values.
 7. Validate the copied files with `deck file validate`.
 
 ## Service onboarding
@@ -59,7 +59,7 @@ OnPrem checks:
 - keep service-specific plugins nested on the service or route instead of creating separate plugin files
 - use `__...__` placeholder tokens for environment-specific values
 - avoid hardcoding environment-specific hosts, URLs, or secrets in shared config
-- if the API needs consumer-specific IDs that change by environment, parameterize `custom_id` through `kong/env/*-onprem.env`
+- if the API needs consumer-specific IDs that change by environment, parameterize `custom_id` through `kong/env/system/*.env`
 
 Example outcome:
 
@@ -121,7 +121,7 @@ Plugin checks:
 
 - `file-log` is now part of the common on-prem service pattern
 - use one global-plugin file per plugin for clarity
-- if the plugin contains environment-specific values, add them to `kong/env/*-onprem.env` and reference them through placeholders
+- if the plugin contains environment-specific values, add them to the matching `kong/env/system/*.env` or `kong/env/user/*-onprem.env` file and reference them through placeholders
 
 ## Consumer onboarding
 
@@ -150,11 +150,14 @@ Consumer checks:
 
 Add new variables to:
 
-- `kong/env/dev-onprem.env`
-- `kong/env/uat-onprem.env`
-- `kong/env/preprod-onprem.env`
-- `kong/env/prod-onprem.env`
-- `kong/env/dr-onprem.env`
+- `kong/env/system/dev-system.env`
+- `kong/env/system/uat-system.env`
+- `kong/env/system/prod-system.env`
+- `kong/env/system/dr-system.env`
+- `kong/env/user/dev-onprem.env`
+- `kong/env/user/uat-onprem.env`
+- `kong/env/user/prod-onprem.env`
+- `kong/env/user/dr-onprem.env`
 
 Use env variables for values such as:
 
@@ -175,5 +178,5 @@ Before creating a PR or running deployment:
 1. Confirm all copied files are under `kong/internal/onprem/`, not under `templates/`.
 2. Confirm numbering does not collide with existing files.
 3. Confirm all `__PLACEHOLDER__` values have been replaced in live config.
-4. Confirm any new env variables exist in every required `kong/env/*-onprem.env` file.
+4. Confirm any new env variables exist in every required `kong/env/system/*.env` or `kong/env/user/*-onprem.env` file.
 5. Run `deck file validate kong/internal/onprem`.
