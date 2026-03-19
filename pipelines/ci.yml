@@ -25,7 +25,7 @@ jobs:
 
       if [ -d "kong/internal/onprem" ]; then
         shopt -s nullglob
-        for env_file in kong/env/*-onprem.env; do
+        for env_file in kong/env/user/*-onprem.env; do
           render_dir="$(mktemp -d)"
           echo "Rendering kong/internal/onprem with $env_file"
           bash scripts/render-kong-state.sh "kong/internal/onprem" "$env_file" "$render_dir"

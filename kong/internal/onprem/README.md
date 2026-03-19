@@ -4,11 +4,10 @@ This folder is the shared base state for `OnPrem`.
 
 It is rendered at pipeline runtime using:
 
-- `kong/env/dev-onprem.env`
-- `kong/env/uat-onprem.env`
-- `kong/env/preprod-onprem.env`
-- `kong/env/prod-onprem.env`
-- `kong/env/dr-onprem.env`
+- `kong/env/system/dev-system.env` + `kong/env/user/dev-onprem.env`
+- `kong/env/system/uat-system.env` + `kong/env/user/uat-onprem.env`
+- `kong/env/system/prod-system.env` + `kong/env/user/prod-onprem.env`
+- `kong/env/system/dr-system.env` + `kong/env/user/dr-onprem.env`
 
 ## Current Work Mechanism
 
@@ -28,7 +27,7 @@ Current pattern:
 
 1. Do not put environment-specific literals directly in this folder.
 2. Use named template tokens for environment-specific values.
-3. Define the real values in every required `kong/env/*-onprem.env` file.
+3. Define the real values in the matching `kong/env/system/*.env` and `kong/env/user/*-onprem.env` files.
 4. Keep service-specific routes in `routes/` and service-specific plugins on the owning service or route object.
 5. Add global plugins under `plugins/` only when the plugin is not tied to one service.
 

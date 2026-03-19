@@ -11,8 +11,8 @@
           "hide_client_headers": false
           "identifier": "consumer"
           "limit":
-            - 1000
-            - 1000
+            - __STANDARD_AMLA_API_RATE_LIMIT_MINUTE__
+            - __STANDARD_AMLA_API_RATE_LIMIT_HOUR__
           "namespace": "standard_amla_api_user_rate_limit"
           "retry_after_jitter_max": 0
           "strategy": "redis"
