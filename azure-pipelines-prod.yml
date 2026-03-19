@@ -16,7 +16,6 @@ parameters:
   default: Uat
   values:
   - Uat
-  - DR
   - Prod
 - name: controlPlane
   displayName: Control Plane
