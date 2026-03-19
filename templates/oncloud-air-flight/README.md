@@ -26,8 +26,8 @@ Included samples:
 ## Recommended onboarding order
 
 1. Create the `service` under `kong/internal/onprem/services/`.
-2. Add the route inside that service file if it is service-specific.
-3. Add service-level or route-level plugins inside the service file when they belong only to that API.
+2. Create the route file under `kong/internal/onprem/routes/` if it is service-specific.
+3. Add service-level plugins inside the service file and route-level plugins inside the route file when they belong only to that API.
 4. Add standalone files under `kong/internal/onprem/plugins/` only for truly global plugins.
 5. Add the `consumer` or `consumer-group` if the API is accessed by a known internal client.
 6. Add or update `kong/env/*-onprem.env` if the new config needs environment-specific values.
@@ -52,11 +52,10 @@ Update these fields:
 - `services[].protocol`
 - timeout or retry values if the upstream requires different settings
 - `services[].plugins[]` for service-level concerns such as `file-log` or `openid-connect`
-- `services[].routes[]` for routes that belong only to this service
 
 OnPrem checks:
 
-- keep service-specific routes nested inside the service file, following the current `kong/internal/onprem/services/` pattern
+- keep service-specific routes in `kong/internal/onprem/routes/`
 - keep service-specific plugins nested on the service or route instead of creating separate plugin files
 - use `__...__` placeholder tokens for environment-specific values
 - avoid hardcoding environment-specific hosts, URLs, or secrets in shared config
@@ -74,9 +73,9 @@ Source template:
 
 Target location:
 
-- usually embedded under `services[].routes[]` in `kong/internal/onprem/services/<number-sequence>-<service-name>.yaml`
+- `kong/internal/onprem/routes/<number-sequence>-<service-name>.yaml`
 
-Use this route template as a snippet reference, not as the final file layout.
+Use this route template as the final file layout and attach each route with `service.name`.
 
 Update these fields:
 
@@ -89,7 +88,7 @@ Update these fields:
 
 Route checks:
 
-- make sure the route stays under the correct service
+- make sure the route points to the correct service through `service.name`
 - use the same public host placeholder style already used by on-prem services
 - keep the route name descriptive, for example `air-flight-search-route`
 
@@ -104,6 +103,8 @@ Target location:
 
 - service-specific plugin:
   `kong/internal/onprem/services/<number-sequence>-<service-name>.yaml`
+- route-specific plugin:
+  `kong/internal/onprem/routes/<number-sequence>-<service-name>.yaml`
 - global plugin:
   `kong/internal/onprem/plugins/<number-sequence>-<plugin-name>.yaml`
 
@@ -113,7 +114,7 @@ Update these fields:
 - `plugins[].config`
 - attach plugins in the right place:
   service-level under `services[].plugins[]`
-  route-level under `services[].routes[].plugins[]`
+  route-level under `routes[].plugins[]`
   global plugins in their own file under `kong/internal/onprem/plugins/`
 
 Plugin checks:

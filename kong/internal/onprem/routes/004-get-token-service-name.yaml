@@ -1,0 +1,18 @@
+"routes":
+  - "hosts":
+      - "__PUBLIC_HOST_PRIMARY_TLS__"
+      - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
+    "https_redirect_status_code": 426
+    "name": "OIDC-Get-Token"
+    "path_handling": "v0"
+    "paths":
+      - "/api/token"
+    "preserve_host": false
+    "protocols":
+      - "https"
+    "regex_priority": 0
+    "request_buffering": true
+    "response_buffering": true
+    "strip_path": true
+    "service":
+      "name": "__GET_TOKEN_SERVICE_NAME__"

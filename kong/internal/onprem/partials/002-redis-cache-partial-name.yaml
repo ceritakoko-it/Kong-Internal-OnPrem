@@ -6,22 +6,22 @@
       "connect_timeout": 2000
       "connection_is_proxied": false
       "database": 0
-      "host": "__REDIS_HOST__"
+      "host": "__REDIS_CACHE_HOST__"
       "keepalive_backlog": 0
       "keepalive_pool_size": 256
-      "password": "__REDIS_PASSWORD__"
+      "password": __REDIS_CACHE_PASSWORD__
       "port": 6379
       "read_timeout": 2000
       "send_timeout": 2000
-      "sentinel_master": null
-      "sentinel_nodes": null
-      "sentinel_password": null
-      "sentinel_role": null
-      "sentinel_username": null
+      "sentinel_master": __REDIS_CACHE_SENTINEL_MASTER__
+      "sentinel_nodes": __REDIS_CACHE_SENTINEL_NODES__
+      "sentinel_password": __REDIS_CACHE_SENTINEL_PASSWORD__
+      "sentinel_role": __REDIS_CACHE_SENTINEL_ROLE__
+      "sentinel_username": __REDIS_CACHE_SENTINEL_USERNAME__
       "server_name": null
       "ssl": false
       "ssl_verify": false
       "username": null
-    "id": "4b4dbb79-bbab-4698-89cb-7d0dcf304e80"
+    "id": "__REDIS_CACHE_PARTIAL_ID__"
     "name": "__REDIS_CACHE_PARTIAL_NAME__"
     "type": "redis-ee"
