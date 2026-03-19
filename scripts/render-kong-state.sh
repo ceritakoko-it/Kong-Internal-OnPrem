@@ -65,6 +65,13 @@ rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 cp -R "$TEMPLATE_DIR"/. "$OUTPUT_DIR"/
 
+if [ "${ENV_TAG_LOWER}" = "prod" ]; then
+  rm -f "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
+  mv "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml" "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
+else
+  rm -f "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml"
+fi
+
 find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \) -print0 | while IFS= read -r -d '' file; do
   perl -0pe '
     my $secondary = $ENV{"PUBLIC_HOST_SECONDARY"} // "";
