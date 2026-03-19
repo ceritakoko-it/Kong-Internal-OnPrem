@@ -1,0 +1,33 @@
+"consumers":
+  - "custom_id": "__STANDARD_BANCA_PORTAL_USER_CUSTOM_ID__"
+    "groups":
+      - "name": "banca_portal_group"
+    "plugins":
+      - "config":
+          "disable_penalty": false
+          "error_code": 429
+          "hide_client_headers": false
+          "identifier": "consumer"
+          "limit":
+            - 100
+            - 100
+          "namespace": "standard_banca_portal_user_rate_limit"
+          "retry_after_jitter_max": 0
+          "strategy": "redis"
+          "sync_rate": -1
+          "window_size":
+            - 60
+            - 3600
+          "window_type": "fixed"
+        "enabled": true
+        "name": "rate-limiting-advanced"
+        "partials":
+          - "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
+            "name": "__REDIS_PARTIAL_NAME__"
+            "path": "config.redis"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+    "username": "standard_banca_portal_user"

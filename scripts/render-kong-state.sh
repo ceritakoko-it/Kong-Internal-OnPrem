@@ -68,8 +68,17 @@ cp -R "$TEMPLATE_DIR"/. "$OUTPUT_DIR"/
 if [ "${ENV_TAG_LOWER}" = "prod" ]; then
   rm -f "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
   mv "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml" "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
+  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
+  mv "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml" "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
+  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
+  mv "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml" "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
+  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
+  mv "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml" "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
 else
   rm -f "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml"
+  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml"
+  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml"
+  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml"
 fi
 
 find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \) -print0 | while IFS= read -r -d '' file; do
