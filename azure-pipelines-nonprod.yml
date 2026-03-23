@@ -37,7 +37,7 @@ stages:
   - job: ValidateRules
     displayName: Check mode/environment/branch rules
     pool:
-      vmImage: ubuntu-latest
+      name: cicd-agent
     steps:
     - bash: |
         set -euo pipefail
