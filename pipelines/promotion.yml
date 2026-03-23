@@ -12,7 +12,7 @@ stages:
   - job: Promote
     displayName: Promote modular state
     pool:
-      vmImage: ubuntu-latest
+      name: cicd-agent
     steps:
     - checkout: self
       clean: true
@@ -32,13 +32,19 @@ stages:
 
     - bash: |
         set -euo pipefail
+        if command -v deck >/dev/null 2>&1; then
+          echo "Using preinstalled decK: $(command -v deck)"
+          deck version
+          exit 0
+        fi
+
         DECK_VERSION="1.52.0"
         curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
         tar -xzf deck.tar.gz
         sudo mv deck /usr/local/bin/deck
         rm -f deck.tar.gz
         deck version
-      displayName: Install decK
+      displayName: Ensure decK is available
 
     - bash: |
         set -euo pipefail
