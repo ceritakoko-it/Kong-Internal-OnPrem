@@ -8,6 +8,7 @@ parameters:
   default: promotion
   values:
   - promotion
+  - rollback
 - name: environment
   displayName: Target Environment
   type: string
@@ -45,16 +46,18 @@ stages:
         ENVIRONMENT="${{ parameters.environment }}"
         BRANCH="$(Build.SourceBranch)"
 
-        if [ "$MODE" = "promotion" ]; then
-          if [ "$ENVIRONMENT" = "Prod" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+        if [ "$ENVIRONMENT" = "Prod" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+          if [ "$MODE" = "promotion" ]; then
             echo "Valid run: promotion to Prod from master branch."
             exit 0
           fi
-          echo "Invalid run: prod pipeline supports only promotion to Prod from master branch."
-          exit 1
+          if [ "$MODE" = "rollback" ]; then
+            echo "Valid run: rollback on Prod from master branch."
+            exit 0
+          fi
         fi
 
-        echo "Invalid run: unsupported mode '$MODE'."
+        echo "Invalid run: prod pipeline supports only promotion or rollback on Prod from master branch."
         exit 1
       displayName: Enforce pipeline guardrails
 
@@ -63,3 +66,11 @@ stages:
     parameters:
       environment: ${{ parameters.environment }}
       controlPlane: ${{ parameters.controlPlane }}
+
+- ${{ if eq(parameters.mode, 'rollback') }}:
+  - template: pipelines/rollback.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+      rollbackBuildId: ${{ parameters.rollbackBuildId }}
+      rollbackBackupFile: ${{ parameters.rollbackBackupFile }}

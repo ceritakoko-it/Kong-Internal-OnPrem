@@ -8,6 +8,7 @@ parameters:
   default: deployment
   values:
   - deployment
+  - rollback
 - name: environment
   displayName: Target Environment
   type: string
@@ -20,6 +21,14 @@ parameters:
   default: OnPremise
   values:
   - OnPremise
+- name: rollbackBuildId
+  displayName: Rollback source Run/Build ID
+  type: string
+  default: 'not-required'
+- name: rollbackBackupFile
+  displayName: Rollback backup YAML filename
+  type: string
+  default: 'not-required'
 
 stages:
 - stage: Validate_Run_Rules
@@ -37,16 +46,31 @@ stages:
         ENVIRONMENT="${{ parameters.environment }}"
         BRANCH="$(Build.SourceBranch)"
 
-        if [ "$MODE" = "deployment" ] && [ "$ENVIRONMENT" = "Uat" ] && [ "$BRANCH" = "refs/heads/master" ]; then
-          echo "Valid run: deployment on Uat from master branch."
-          exit 0
+        if [ "$ENVIRONMENT" = "Uat" ] && [ "$BRANCH" = "refs/heads/master" ]; then
+          if [ "$MODE" = "deployment" ]; then
+            echo "Valid run: deployment on Uat from master branch."
+            exit 0
+          fi
+          if [ "$MODE" = "rollback" ]; then
+            echo "Valid run: rollback on Uat from master branch."
+            exit 0
+          fi
         fi
 
-        echo "Invalid run: uat pipeline supports only deployment on Uat from master branch."
+        echo "Invalid run: uat pipeline supports only deployment or rollback on Uat from master branch."
         exit 1
       displayName: Enforce pipeline guardrails
 
-- template: pipelines/deployment.yml
-  parameters:
-    environment: ${{ parameters.environment }}
-    controlPlane: ${{ parameters.controlPlane }}
+- ${{ if eq(parameters.mode, 'deployment') }}:
+  - template: pipelines/deployment.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+
+- ${{ if eq(parameters.mode, 'rollback') }}:
+  - template: pipelines/rollback.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      controlPlane: ${{ parameters.controlPlane }}
+      rollbackBuildId: ${{ parameters.rollbackBuildId }}
+      rollbackBackupFile: ${{ parameters.rollbackBackupFile }}
