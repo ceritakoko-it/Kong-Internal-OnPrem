@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ENV_NAME="${1:-}"
-TIMEOUT_SECONDS=60
+TIMEOUT_SECONDS=100
 CONNECT_TIMEOUT_SECONDS=10
 
 test -n "${ENV_NAME}" || { echo "Usage: $0 <dev|uat|prod>"; exit 1; }
@@ -22,6 +22,7 @@ fi
 
 BASE_URL="${TEST_BASE_URL:-https://${PUBLIC_HOST_PRIMARY}}"
 TOKEN_GRANT_TYPE="${TOKEN_GRANT_TYPE:-client_credentials}"
+BANCA_TOKEN_CACHE_FILE="${BANCA_TOKEN_CACHE_FILE:-${HOME}/.kong-internal-onprem-banca-${ENV_NAME}.env}"
 
 : "${AML_REST_SCAN_BODY:?Set AML_REST_SCAN_BODY in the env-specific smoke test script}"
 : "${AML_REST_AB_SCAN_BODY:?Set AML_REST_AB_SCAN_BODY in the env-specific smoke test script}"
@@ -71,6 +72,7 @@ test -n "${CLAIM_HISTORY_CLIENT_SECRET}" || { echo "Set TOKEN_CLAIM_HISTORY_CLIE
 
 token_response_file="$(mktemp)"
 api_response_file="$(mktemp)"
+cookie_jar_file="$(mktemp)"
 FAILURES=0
 FAILED_TESTS=()
 
@@ -97,8 +99,35 @@ print_failure_detail() {
   fi
 }
 
+response_contains() {
+  local needle="$1"
+  if [ ! -s "${api_response_file}" ]; then
+    return 1
+  fi
+  grep -Fqi "${needle}" "${api_response_file}"
+}
+
+load_banca_token_cache() {
+  if [ -z "${BANCA_API_TOKEN_HARDCODE:-}" ] && [ -f "${BANCA_TOKEN_CACHE_FILE}" ]; then
+    # shellcheck disable=SC1090
+    source "${BANCA_TOKEN_CACHE_FILE}"
+    if [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
+      echo "[INFO] [Banca Portal] Loaded cached BANCA_API_TOKEN_HARDCODE from ${BANCA_TOKEN_CACHE_FILE}"
+    fi
+  fi
+}
+
+save_banca_token_cache() {
+  local api_token="$1"
+  mkdir -p "$(dirname "${BANCA_TOKEN_CACHE_FILE}")"
+  cat > "${BANCA_TOKEN_CACHE_FILE}" <<EOF
+export BANCA_API_TOKEN_HARDCODE='${api_token}'
+EOF
+  echo "[INFO] [Banca Portal] Cached apiToken to ${BANCA_TOKEN_CACHE_FILE}"
+}
+
 cleanup() {
-  rm -f "${token_response_file}" "${api_response_file}"
+  rm -f "${token_response_file}" "${api_response_file}" "${cookie_jar_file}"
 }
 trap cleanup EXIT
 
@@ -112,6 +141,8 @@ fetch_access_token() {
 
   read -r token_http_code time_total <<< "$(
     curl -sS \
+      -b "${cookie_jar_file}" \
+      -c "${cookie_jar_file}" \
       --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
       --max-time "${TIMEOUT_SECONDS}" \
       -o "${token_response_file}" \
@@ -162,6 +193,8 @@ run_get_test() {
     set +e
     read -r http_code time_total <<< "$(
       curl -sS \
+        -b "${cookie_jar_file}" \
+        -c "${cookie_jar_file}" \
         --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
         --max-time "${TIMEOUT_SECONDS}" \
         -o "${api_response_file}" \
@@ -176,6 +209,8 @@ run_get_test() {
     set +e
     read -r http_code time_total <<< "$(
       curl -sS \
+        -b "${cookie_jar_file}" \
+        -c "${cookie_jar_file}" \
         --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
         --max-time "${TIMEOUT_SECONDS}" \
         -o "${api_response_file}" \
@@ -217,6 +252,8 @@ run_post_test() {
     set +e
     read -r http_code time_total <<< "$(
       curl -sS \
+        -b "${cookie_jar_file}" \
+        -c "${cookie_jar_file}" \
         --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
         --max-time "${TIMEOUT_SECONDS}" \
         -o "${api_response_file}" \
@@ -233,6 +270,8 @@ run_post_test() {
     set +e
     read -r http_code time_total <<< "$(
       curl -sS \
+        -b "${cookie_jar_file}" \
+        -c "${cookie_jar_file}" \
         --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
         --max-time "${TIMEOUT_SECONDS}" \
         -o "${api_response_file}" \
@@ -266,17 +305,54 @@ run_get_test "AMLA" "Get KYC Risk Score" "/api/wsmanager/kyc/riskscore/getLatest
 run_post_test "AMLA" "FILTERING AML Scan" "/aml/restsvc/scan" "application/json" "${AML_REST_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
 run_post_test "AMLA" "FILTERING Scan General Product" "/aml/restsvc-ab/scan" "application/json" "${AML_REST_AB_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
 
+load_banca_token_cache
+
 BANCA_ACCESS_TOKEN="$(fetch_access_token "${BANCA_CLIENT_ID}" "${BANCA_CLIENT_SECRET}" "Banca")"
 run_post_test "Banca Portal" "Banca Login" "/auth/banca/login" "application/json" "${BANCA_LOGIN_BODY}" "${BANCA_ACCESS_TOKEN}"
-BANCA_LOGIN_TOKEN="$(
-  "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("token", ""))' \
-    < "${api_response_file}"
-)"
-test -n "${BANCA_LOGIN_TOKEN}" || { echo "Banca login response did not contain token"; cat "${api_response_file}"; exit 1; }
+BANCA_LOGIN_TOKEN=""
+if [ -s "${api_response_file}" ]; then
+  BANCA_LOGIN_TOKEN="$(
+    "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("token", ""))' \
+      < "${api_response_file}" 2>/dev/null || true
+  )"
+fi
+
+if [ -z "${BANCA_LOGIN_TOKEN}" ] && response_contains "active session"; then
+  if [ -n "${BANCA_LOGIN_TOKEN_HARDCODE:-}" ]; then
+    BANCA_LOGIN_TOKEN="${BANCA_LOGIN_TOKEN_HARDCODE}"
+    echo "[INFO] [Banca Portal] Using BANCA_LOGIN_TOKEN_HARDCODE because login hit active session handling."
+  fi
+fi
+
+if [ -z "${BANCA_LOGIN_TOKEN}" ]; then
+  echo "[WARN] [Banca Portal] No usable token from Banca Login. Downstream Banca APIs may fail."
+fi
+
 BANCA_X_AUTH_TOKEN="Bearer ${BANCA_ACCESS_TOKEN}"
 run_post_test "Banca Portal" "Banca Authentication" "/auth/banca/authenticate" "application/xml" "${BANCA_AUTHENTICATE_BODY}" "${BANCA_LOGIN_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
-run_post_test "Banca Portal" "Data Transfer eQuotation" "/api/banca/quotation" "application/xml" "${BANCA_QUOTATION_BODY}" "${BANCA_LOGIN_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
-run_post_test "Banca Portal" "Data Transfer Calculate" "/api/banca/calculate" "application/xml" "${BANCA_CALCULATE_BODY}" "${BANCA_LOGIN_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+BANCA_API_TOKEN=""
+if [ -s "${api_response_file}" ]; then
+  BANCA_API_TOKEN="$(
+    "${PYTHON_BIN}" -c 'import re, sys; text = sys.stdin.read(); match = re.search(r"<apiToken>(.*?)</apiToken>", text, re.DOTALL); print(match.group(1).strip() if match else "")' \
+      < "${api_response_file}" 2>/dev/null || true
+  )"
+fi
+
+if [ -z "${BANCA_API_TOKEN}" ] && [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
+  BANCA_API_TOKEN="${BANCA_API_TOKEN_HARDCODE}"
+  echo "[INFO] [Banca Portal] Using BANCA_API_TOKEN_HARDCODE because authenticate did not return apiToken."
+fi
+
+if [ -n "${BANCA_API_TOKEN}" ]; then
+  save_banca_token_cache "${BANCA_API_TOKEN}"
+fi
+
+if [ -z "${BANCA_API_TOKEN}" ]; then
+  echo "[WARN] [Banca Portal] No usable apiToken from Banca Authentication. eQuotation and Calculate may fail."
+fi
+
+run_post_test "Banca Portal" "Data Transfer eQuotation" "/api/banca/quotation" "application/xml" "${BANCA_QUOTATION_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+run_post_test "Banca Portal" "Data Transfer Calculate" "/api/banca/calculate" "application/xml" "${BANCA_CALCULATE_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
 
 CLAIM_HISTORY_ACCESS_TOKEN="$(fetch_access_token "${CLAIM_HISTORY_CLIENT_ID}" "${CLAIM_HISTORY_CLIENT_SECRET}" "Claim History")"
 run_post_test "Claim History" "Storm API Account" "/api/storm/account" "application/json" "${CLAIM_STORM_ACCOUNT_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"

@@ -237,13 +237,13 @@ stages:
         RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
         RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
 
-    - task: PublishPipelineArtifact@1
+    - task: PublishBuildArtifacts@1
       displayName: Publish rollback backup artifact
       condition: and(succeeded(), eq(variables['HAS_CHANGES'], 'true'))
       inputs:
-        targetPath: $(BACKUP_DIR)
-        artifact: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
-        publishLocation: pipeline
+        PathtoPublish: $(BACKUP_DIR)
+        ArtifactName: kong-backup-${{ parameters.environment }}-${{ parameters.controlPlane }}-$(Build.BuildId)
+        publishLocation: Container
 
     - bash: |
         set -euo pipefail
