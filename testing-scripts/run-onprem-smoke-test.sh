@@ -99,6 +99,23 @@ print_failure_detail() {
   fi
 }
 
+reset_response_file() {
+  : > "${api_response_file}"
+}
+
+print_curl_failure_detail() {
+  local curl_rc="$1"
+
+  case "${curl_rc}" in
+    28)
+      printf '  detail: curl timeout after %ss (connect timeout %ss)\n' "${TIMEOUT_SECONDS}" "${CONNECT_TIMEOUT_SECONDS}"
+      ;;
+    *)
+      printf '  detail: curl transport error rc=%s\n' "${curl_rc}"
+      ;;
+  esac
+}
+
 response_contains() {
   local needle="$1"
   if [ ! -s "${api_response_file}" ]; then
@@ -111,9 +128,6 @@ load_banca_token_cache() {
   if [ -z "${BANCA_API_TOKEN_HARDCODE:-}" ] && [ -f "${BANCA_TOKEN_CACHE_FILE}" ]; then
     # shellcheck disable=SC1090
     source "${BANCA_TOKEN_CACHE_FILE}"
-    if [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
-      echo "[INFO] [Banca Portal] Loaded cached BANCA_API_TOKEN_HARDCODE from ${BANCA_TOKEN_CACHE_FILE}"
-    fi
   fi
 }
 
@@ -121,9 +135,31 @@ save_banca_token_cache() {
   local api_token="$1"
   mkdir -p "$(dirname "${BANCA_TOKEN_CACHE_FILE}")"
   cat > "${BANCA_TOKEN_CACHE_FILE}" <<EOF
+# Load manually with:
+# source ${BANCA_TOKEN_CACHE_FILE}
 export BANCA_API_TOKEN_HARDCODE='${api_token}'
 EOF
-  echo "[INFO] [Banca Portal] Cached apiToken to ${BANCA_TOKEN_CACHE_FILE}"
+}
+
+upsert_local_secret_var() {
+  local var_name="$1"
+  local var_value="$2"
+  local secret_file="${ONPREM_LOCAL_SECRET_FILE:-}"
+  local escaped_value
+
+  if [ -z "${secret_file}" ] || [ -z "${var_value}" ]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "${secret_file}")"
+  touch "${secret_file}"
+  escaped_value="$(printf '%s' "${var_value}" | sed "s/'/'\\\\''/g")"
+
+  if grep -qE "^export ${var_name}=" "${secret_file}"; then
+    sed -i "s|^export ${var_name}=.*|export ${var_name}='${escaped_value}'|" "${secret_file}"
+  else
+    printf "export %s='%s'\n" "${var_name}" "${escaped_value}" >> "${secret_file}"
+  fi
 }
 
 cleanup() {
@@ -138,6 +174,8 @@ fetch_access_token() {
   local token_http_code
   local time_total
   local access_token
+
+  : > "${token_response_file}"
 
   read -r token_http_code time_total <<< "$(
     curl -sS \
@@ -185,6 +223,8 @@ run_get_test() {
   local time_total
   local curl_rc=0
 
+  reset_response_file
+
   if [ -n "${query_string}" ]; then
     url="${url}?${query_string}"
   fi
@@ -227,7 +267,11 @@ run_get_test() {
       http_code="CURL-${curl_rc}"
     fi
     print_result "FAIL" "${category}" "GET" "${test_name}" "${http_code}" "${time_total}"
-    print_failure_detail
+    if [ "${curl_rc}" -ne 0 ]; then
+      print_curl_failure_detail "${curl_rc}"
+    else
+      print_failure_detail
+    fi
     FAILURES=$((FAILURES + 1))
     FAILED_TESTS+=("[${category}] ${test_name}")
     return 0
@@ -247,6 +291,8 @@ run_post_test() {
   local http_code
   local time_total
   local curl_rc=0
+
+  reset_response_file
 
   if [ -n "${extra_header_name}" ]; then
     set +e
@@ -290,7 +336,11 @@ run_post_test() {
       http_code="CURL-${curl_rc}"
     fi
     print_result "FAIL" "${category}" "POST" "${test_name}" "${http_code}" "${time_total}"
-    print_failure_detail
+    if [ "${curl_rc}" -ne 0 ]; then
+      print_curl_failure_detail "${curl_rc}"
+    else
+      print_failure_detail
+    fi
     FAILURES=$((FAILURES + 1))
     FAILED_TESTS+=("[${category}] ${test_name}")
     return 0
@@ -320,12 +370,13 @@ fi
 if [ -z "${BANCA_LOGIN_TOKEN}" ] && response_contains "active session"; then
   if [ -n "${BANCA_LOGIN_TOKEN_HARDCODE:-}" ]; then
     BANCA_LOGIN_TOKEN="${BANCA_LOGIN_TOKEN_HARDCODE}"
-    echo "[INFO] [Banca Portal] Using BANCA_LOGIN_TOKEN_HARDCODE because login hit active session handling."
   fi
 fi
 
 if [ -z "${BANCA_LOGIN_TOKEN}" ]; then
   echo "[WARN] [Banca Portal] No usable token from Banca Login. Downstream Banca APIs may fail."
+else
+  upsert_local_secret_var "BANCA_LOGIN_TOKEN_HARDCODE" "${BANCA_LOGIN_TOKEN}"
 fi
 
 BANCA_X_AUTH_TOKEN="Bearer ${BANCA_ACCESS_TOKEN}"
@@ -340,7 +391,6 @@ fi
 
 if [ -z "${BANCA_API_TOKEN}" ] && [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
   BANCA_API_TOKEN="${BANCA_API_TOKEN_HARDCODE}"
-  echo "[INFO] [Banca Portal] Using BANCA_API_TOKEN_HARDCODE because authenticate did not return apiToken."
 fi
 
 if [ -n "${BANCA_API_TOKEN}" ]; then

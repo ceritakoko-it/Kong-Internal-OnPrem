@@ -78,7 +78,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "storm/api/Velogica"
+            "uri": "/storm/api/Velogica"
         "enabled": true
         "name": "request-transformer"
         "protocols":

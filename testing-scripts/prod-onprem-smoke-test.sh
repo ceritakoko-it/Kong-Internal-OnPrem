@@ -2,6 +2,13 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOCAL_SECRET_FILE="${SCRIPT_DIR}/prod-onprem-secrets.local.sh"
+export ONPREM_LOCAL_SECRET_FILE="${LOCAL_SECRET_FILE}"
+
+if [ -f "${LOCAL_SECRET_FILE}" ]; then
+  # shellcheck disable=SC1090
+  source "${LOCAL_SECRET_FILE}"
+fi
 
 export PUBLIC_HOST_PRIMARY='kong-api.takaful-malaysia.com.my'
 export AMLA_API_KEY='a3a4f228-7132-4e32-bd8b-13b2da223e6b'
