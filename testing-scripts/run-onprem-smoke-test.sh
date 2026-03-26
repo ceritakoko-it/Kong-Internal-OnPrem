@@ -31,6 +31,7 @@ BANCA_TOKEN_CACHE_FILE="${BANCA_TOKEN_CACHE_FILE:-${HOME}/.kong-internal-onprem-
 : "${KYC_TOPIC_QUERY:?Set KYC_TOPIC_QUERY in the env-specific smoke test script}"
 : "${BANCA_LOGIN_BODY:?Set BANCA_LOGIN_BODY in the env-specific smoke test script}"
 : "${BANCA_AUTHENTICATE_BODY:?Set BANCA_AUTHENTICATE_BODY in the env-specific smoke test script}"
+: "${BANCA_LOGOUT_BODY:?Set BANCA_LOGOUT_BODY in the env-specific smoke test script}"
 : "${BANCA_CALCULATE_BODY:?Set BANCA_CALCULATE_BODY in the env-specific smoke test script}"
 : "${BANCA_QUOTATION_BODY:?Set BANCA_QUOTATION_BODY in the env-specific smoke test script}"
 : "${CLAIM_STORM_ACCOUNT_BODY:?Set CLAIM_STORM_ACCOUNT_BODY in the env-specific smoke test script}"
@@ -360,9 +361,14 @@ load_banca_token_cache
 BANCA_ACCESS_TOKEN="$(fetch_access_token "${BANCA_CLIENT_ID}" "${BANCA_CLIENT_SECRET}" "Banca")"
 run_post_test "Banca Portal" "Banca Login" "/auth/banca/login" "application/json" "${BANCA_LOGIN_BODY}" "${BANCA_ACCESS_TOKEN}"
 BANCA_LOGIN_TOKEN=""
+BANCA_SESSION_ID=""
 if [ -s "${api_response_file}" ]; then
   BANCA_LOGIN_TOKEN="$(
     "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("token", ""))' \
+      < "${api_response_file}" 2>/dev/null || true
+  )"
+  BANCA_SESSION_ID="$(
+    "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("sessionId", ""))' \
       < "${api_response_file}" 2>/dev/null || true
   )"
 fi
@@ -371,12 +377,19 @@ if [ -z "${BANCA_LOGIN_TOKEN}" ] && response_contains "active session"; then
   if [ -n "${BANCA_LOGIN_TOKEN_HARDCODE:-}" ]; then
     BANCA_LOGIN_TOKEN="${BANCA_LOGIN_TOKEN_HARDCODE}"
   fi
+  if [ -z "${BANCA_SESSION_ID}" ] && [ -n "${BANCA_SESSION_ID_HARDCODE:-}" ]; then
+    BANCA_SESSION_ID="${BANCA_SESSION_ID_HARDCODE}"
+  fi
 fi
 
 if [ -z "${BANCA_LOGIN_TOKEN}" ]; then
   echo "[WARN] [Banca Portal] No usable token from Banca Login. Downstream Banca APIs may fail."
 else
   upsert_local_secret_var "BANCA_LOGIN_TOKEN_HARDCODE" "${BANCA_LOGIN_TOKEN}"
+fi
+
+if [ -n "${BANCA_SESSION_ID}" ]; then
+  upsert_local_secret_var "BANCA_SESSION_ID_HARDCODE" "${BANCA_SESSION_ID}"
 fi
 
 BANCA_X_AUTH_TOKEN="Bearer ${BANCA_ACCESS_TOKEN}"
@@ -403,6 +416,12 @@ fi
 
 run_post_test "Banca Portal" "Data Transfer eQuotation" "/api/banca/quotation" "application/xml" "${BANCA_QUOTATION_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
 run_post_test "Banca Portal" "Data Transfer Calculate" "/api/banca/calculate" "application/xml" "${BANCA_CALCULATE_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+if [ -n "${BANCA_SESSION_ID}" ]; then
+  BANCA_LOGOUT_BODY_RENDERED="${BANCA_LOGOUT_BODY//__BANCA_SESSION_ID__/${BANCA_SESSION_ID}}"
+  run_post_test "Banca Portal" "Banca Logout" "/auth/banca/logout" "application/json" "${BANCA_LOGOUT_BODY_RENDERED}" "${BANCA_ACCESS_TOKEN}"
+else
+  echo "[WARN] [Banca Portal] No sessionId returned from Banca Login. Logout step skipped."
+fi
 
 CLAIM_HISTORY_ACCESS_TOKEN="$(fetch_access_token "${CLAIM_HISTORY_CLIENT_ID}" "${CLAIM_HISTORY_CLIENT_SECRET}" "Claim History")"
 run_post_test "Claim History" "Storm API Account" "/api/storm/account" "application/json" "${CLAIM_STORM_ACCOUNT_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"
