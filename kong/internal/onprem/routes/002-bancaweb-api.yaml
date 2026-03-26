@@ -966,7 +966,7 @@
           "cache_introspection": true
           "cache_token_exchange": true
           "cache_tokens": true
-          "cache_tokens_salt": "__CACHE_TOKENS_SALT_BANCA_LOGOUT__"
+          "cache_tokens_salt": "A2mgQ9cgW3hJ75tLA9olRKB0yovpfFw0"
           "cache_ttl": 3600
           "cache_ttl_max": null
           "cache_ttl_min": null
