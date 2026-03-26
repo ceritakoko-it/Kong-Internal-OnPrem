@@ -1,5 +1,5 @@
 "services":
-  - "connect_timeout": 60000
+  - "connect_timeout": 120000
     "enabled": true
     "host": "__CLAIMHISTORY_STORM_SERVICE_HOST__"
     "name": "ClaimHistory-Storm-API"
@@ -386,7 +386,7 @@
           - "https"
     "port": 443
     "protocol": "https"
-    "read_timeout": 60000
+    "read_timeout": 120000
     "retries": 5
     "tls_verify": false
-    "write_timeout": 60000
+    "write_timeout": 120000
