@@ -102,39 +102,37 @@ certificates:
     rwiJrUUi85gGJ58ws8837xJLq059ChW9Hw8ktn/IcfCZvCj1ymBK
     -----END RSA PRIVATE KEY-----
   snis:
-  - name: int-api-dev.takaful-malaysia.com.my
+  - id: ab0a85e7-43a3-4542-a13a-602cf675d90f
+    name: int-api-dev.takaful-malaysia.com.my
     tags:
     - dev
     - onprem
     - internal
-  - name: kong-api-dev.takaful-malaysia.com.my
+  - id: 5828154f-79c3-4feb-8587-1816c80e0373
+    name: kong-api-dev.takaful-malaysia.com.my
     tags:
     - dev
     - public
     - onprem
   tags:
   - dev
-consumer_groups:
-- name: amla_api_group
-- name: banca_portal_group
-- name: claim_history_group
 consumers:
 - custom_id: 7xhj9fal3ahau9qh
-  groups:
-  - name: amla_api_group
+  id: 75e34690-e0eb-420d-8895-e9de51bfc606
   keyauth_credentials:
-  - key: 902f11df-7a11-4f1a-bef1-03326df0c260
+  - id: bca63036-0955-443b-a87f-6102e1a03fa3
+    key: 902f11df-7a11-4f1a-bef1-03326df0c260
   plugins:
   - config:
       day: null
       error_code: 429
       error_message: API rate limit exceeded
-      fault_tolerant: true
+      fault_tolerant: false
       header_name: null
       hide_client_headers: false
-      hour: 1000
+      hour: 100
       limit_by: consumer
-      minute: 1000
+      minute: 100
       month: null
       path: null
       policy: redis
@@ -144,6 +142,7 @@ consumers:
       sync_rate: -1
       year: null
     enabled: true
+    id: ea665362-64c5-4d8b-ab0d-34bc9c46295a
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
@@ -154,10 +153,71 @@ consumers:
     - grpcs
     - http
     - https
+  - config:
+      compound_identifier: null
+      consumer_groups: null
+      dictionary_name: kong_rate_limiting_counters
+      disable_penalty: false
+      enforce_consumer_groups: false
+      error_code: 429
+      error_message: API rate limit exceeded
+      header_name: null
+      hide_client_headers: false
+      identifier: consumer
+      limit:
+      - 1
+      lock_dictionary_name: kong_locks
+      namespace: 2N1ztuIRHQaFIGCQ9XjyGVoMgjdq31sd
+      path: null
+      redis:
+        cloud_authentication: null
+        cluster_addresses: null
+        cluster_max_redirections: 5
+        cluster_nodes: null
+        connect_timeout: 2000
+        connection_is_proxied: false
+        database: 0
+        host: 127.0.0.1
+        keepalive_backlog: null
+        keepalive_pool_size: 256
+        password: null
+        port: 6379
+        read_timeout: 2000
+        redis_proxy_type: null
+        send_timeout: 2000
+        sentinel_addresses: null
+        sentinel_master: null
+        sentinel_nodes: null
+        sentinel_password: null
+        sentinel_role: null
+        sentinel_username: null
+        server_name: null
+        ssl: false
+        ssl_verify: false
+        timeout: 2000
+        username: null
+      retry_after_jitter_max: 0
+      strategy: local
+      sync_rate: -1
+      throttling:
+        enabled: false
+        interval: 5
+        queue_limit: 5
+        retry_times: 3
+      window_size:
+      - 60
+      window_type: sliding
+    enabled: false
+    id: b21fb269-e57a-4960-9169-f648023b7609
+    name: rate-limiting-advanced
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
   username: standard_amla_api_user
 - custom_id: 97d2r67zkbigdfm0
-  groups:
-  - name: banca_portal_group
+  id: 22919940-2903-4220-8b4f-e3f18ac6a1a6
   plugins:
   - config:
       day: null
@@ -178,6 +238,7 @@ consumers:
       sync_rate: -1
       year: null
     enabled: true
+    id: 08a65387-febf-4dbf-a3c6-8fbf6ae86b46
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
@@ -190,8 +251,7 @@ consumers:
     - https
   username: standard_banca_portal_user
 - custom_id: yexgid3cxbw5mf69
-  groups:
-  - name: claim_history_group
+  id: 3d2680d0-abca-499b-a190-1069cfc66d48
   plugins:
   - config:
       day: null
@@ -212,6 +272,7 @@ consumers:
       sync_rate: -1
       year: null
     enabled: true
+    id: 58c9df59-17d0-4a4e-aa00-9ae18565df67
     name: rate-limiting
     partials:
     - id: 498c2db2-f243-4fab-9743-7ef0bfb82512
@@ -223,6 +284,17 @@ consumers:
     - http
     - https
   username: standard_claim_history_user
+- basicauth_credentials:
+  - id: 6a483398-c7da-4628-86c2-40417c07d196
+    password: e5ec99475752c8c25c011b8f2a65307178f30087
+    username: test-username
+  id: 78d4371a-4d92-4a0e-943b-a58aead1b437
+  jwt_secrets:
+  - algorithm: HS256
+    id: 8c7fe54d-279d-4991-a7ab-da22dc43a9ff
+    key: owL6TDykHPlFNsdwerekmd7z8ltWjT43
+    secret: NMMUkfj1qwPXOaY6WHijYljZav1WTmNh
+  username: test-user
 partials:
 - config:
     cloud_authentication: null
@@ -266,6 +338,50 @@ partials:
   type: redis-ee
 plugins:
 - config:
+    anonymous: null
+    brute_force_protection:
+      redis:
+        cloud_authentication:
+          auth_provider: null
+          aws_access_key_id: null
+          aws_assume_role_arn: null
+          aws_cache_name: null
+          aws_is_serverless: true
+          aws_region: null
+          aws_role_session_name: null
+          aws_secret_access_key: null
+          azure_client_id: null
+          azure_client_secret: null
+          azure_tenant_id: null
+          gcp_service_account_json: null
+        database: 0
+        host: null
+        password: test-password
+        port: 6379
+        server_name: null
+        ssl: false
+        ssl_verify: false
+        timeout: 2000
+        username: test-username
+      strategy: "off"
+    hide_credentials: false
+    realm: service
+  enabled: true
+  id: d51f1294-92fd-4a99-bada-5a95816533b1
+  instance_name: test-basic
+  name: basic-auth
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+  - ws
+  - wss
+  route: test-svc-route
+  service: test-service
+  tags:
+  - test
+- config:
     allow_origin_absent: true
     credentials: false
     exposed_headers: null
@@ -285,6 +401,7 @@ plugins:
     preflight_continue: false
     private_network: false
   enabled: true
+  id: db2502c2-9f56-4718-a927-7fa32ca9c7a0
   name: cors
   protocols:
   - grpc
@@ -350,6 +467,7 @@ plugins:
     handle_unexpected: false
     handle_unknown: false
   enabled: true
+  id: 054bde0f-4e20-4e14-917e-b6be8399959d
   instance_name: Global-Error-Handling
   name: exit-transformer
   protocols:
@@ -366,12 +484,49 @@ plugins:
     upstream_health_metrics: true
     wasm_metrics: true
   enabled: true
+  id: 5ff5d579-750b-4392-ac94-ee991ada8711
   name: prometheus
   protocols:
   - grpc
   - grpcs
   - http
   - https
+- config:
+    add:
+      body:
+      - '{ "UserName" : "jhuwAAMCaQRdzGYoDMyFvnWpn/LPHht7wQmUha1gBhZmXtQPS81VWOJjlPx1T6nIPeqf82nfYFutt4lG6ipjUm/KGIp6zqKYr94rvPFNqj2iu+s5cyQlEhgFJ+l3Q8yIY8hCqyU2xPQKPK2rVNLm56Q+HTafaykiL2XRjvAJhoM=",
+        "Password" :"fDyDhjZXzcYiSH51gjQNmQfirFcAsIBlQm2QLnSljy1euNGxHWxpKdTfKXyVUOYcCbTqyKZOLKRgTSmX4UYA8YWkcQCGJZhO0kDe1ogywr+YdtRe1WNHHFvchVqddya+eB5oFZGKwswKuLttNU+QzgGO0MvF+QYLxCO8SystM0k="
+        }'
+      headers: []
+      querystring: []
+    append:
+      body: []
+      headers: []
+      querystring: []
+    http_method: null
+    remove:
+      body: []
+      headers: []
+      querystring: []
+    rename:
+      body: []
+      headers: []
+      querystring: []
+    replace:
+      body: []
+      headers: []
+      querystring: []
+      uri: /BancaWebApi/UAT/account/Login
+  enabled: true
+  id: a6043051-0a37-497e-b30a-27406f70677a
+  name: request-transformer
+  protocols:
+  - grpc
+  - grpcs
+  - http
+  - https
+  route: test-svc-route
+  service: test-service
 - config:
     add:
       headers:
@@ -393,6 +548,7 @@ plugins:
       json: []
       json_types: []
   enabled: true
+  id: 04712b36-87d8-4860-8634-268621c7ff3d
   name: response-transformer
   protocols:
   - http
@@ -401,6 +557,7 @@ services:
 - connect_timeout: 60000
   enabled: true
   host: 10.30.101.238
+  id: 1764a679-f62b-4e50-b013-ee17bc5197ec
   name: AML-Rest-Services
   plugins:
   - config:
@@ -408,6 +565,7 @@ services:
       path: /usr/local/kong/logs/transaction.log
       reopen: false
     enabled: true
+    id: 88570f15-3fca-4b88-9e74-ce8587eded62
     name: file-log
     protocols:
     - grpc
@@ -776,6 +934,7 @@ services:
       verify_parameters: false
       verify_signature: true
     enabled: true
+    id: 5c508aa8-0f13-4aba-85f6-4243063a3749
     instance_name: AML-RestSvc-OIDC
     name: openid-connect
     protocols:
@@ -791,6 +950,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: a978ae5d-8f87-447e-8a1e-91ee1c984653
     name: aml-restsvc-route
     path_handling: v0
     paths:
@@ -820,6 +980,7 @@ services:
           querystring: []
           uri: /AMLRestSvc/rest/aml/scan
       enabled: true
+      id: 5a029d08-b026-480b-838a-98bf50415a66
       name: request-transformer
       protocols:
       - grpc
@@ -836,6 +997,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: a206bb96-7f2d-4635-891b-50316609a2ee
     name: aml-restsvcab-scan
     path_handling: v0
     paths:
@@ -865,6 +1027,7 @@ services:
           querystring: []
           uri: /AMLRestSvcAB/rest/aml/scan
       enabled: true
+      id: d57342b9-de1f-4a07-9995-11940c06b37d
       name: request-transformer
       protocols:
       - grpc
@@ -882,6 +1045,7 @@ services:
 - connect_timeout: 60000
   enabled: true
   host: wintelappuat.takaful-malaysia.com.my
+  id: 07e2b4e3-025d-46da-b085-64f70a2987f3
   name: BancaWeb-API
   plugins:
   - config:
@@ -889,6 +1053,7 @@ services:
       path: /usr/local/kong/logs/transaction.log
       reopen: false
     enabled: true
+    id: 414e438b-0d2b-4e66-9fb7-b9f6115c8d7c
     name: file-log
     protocols:
     - grpc
@@ -903,6 +1068,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: bee001a8-72fa-44e6-8e2d-395fae02ba78
     name: banca-auth-authenticate-route
     path_handling: v0
     paths:
@@ -1269,6 +1435,7 @@ services:
         verify_parameters: false
         verify_signature: true
       enabled: true
+      id: 2193817b-1aa4-4d21-9168-066ac7b29e69
       instance_name: Banca-Auth-OIDC
       name: openid-connect
       protocols:
@@ -1298,12 +1465,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: 1ee8f0ce-fecc-482f-9a6e-754c7e2f4379
       instance_name: Post-Authlogin-Banca
       name: post-function
-      ordering:
-        after:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -1330,12 +1494,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: a258e430-7a79-4988-ab6f-fc6855a7a103
       instance_name: Banca-Pre-Auth-Function
       name: pre-function
-      ordering:
-        before:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -1365,6 +1526,7 @@ services:
           querystring: []
           uri: /BancaWebApi/UAT/datatransfer/authentication
       enabled: true
+      id: 9fab2f04-6da4-4a1e-8499-be76b214ca3a
       name: request-transformer
       protocols:
       - grpc
@@ -1381,6 +1543,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: e03a2e17-42c9-4a2c-a42d-70775eee56fa
     name: banca-auth-login-route
     path_handling: v0
     paths:
@@ -1747,6 +1910,7 @@ services:
         verify_parameters: false
         verify_signature: true
       enabled: true
+      id: 6e066218-4c55-4943-977f-54fa00373dab
       instance_name: Banca-Auth-Login-OIDC
       name: openid-connect
       protocols:
@@ -1770,12 +1934,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: 57cc5083-f72e-4539-b1b3-fa68e6f54ae3
       instance_name: Post-Auth-Banca
       name: post-function
-      ordering:
-        after:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -1805,11 +1966,449 @@ services:
           querystring: []
           uri: /BancaWebApi/UAT/account/Login
       enabled: true
+      id: 153be8f6-3501-488e-a1ad-233f5975e871
       name: request-transformer
-      ordering:
-        after:
-          access:
-          - post-function
+      protocols:
+      - grpc
+      - grpcs
+      - http
+      - https
+    preserve_host: false
+    protocols:
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  - hosts:
+    - kong-api-dev.takaful-malaysia.com.my
+    https_redirect_status_code: 426
+    id: 00c1dabe-b064-4b54-b032-cd69097eb3da
+    name: banca-auth-logout-route
+    path_handling: v0
+    paths:
+    - /auth/banca/logout
+    plugins:
+    - config:
+        anonymous: null
+        audience: null
+        audience_claim:
+        - aud
+        audience_required: null
+        auth_methods:
+        - password
+        - client_credentials
+        - authorization_code
+        - bearer
+        - introspection
+        - userinfo
+        - kong_oauth2
+        - refresh_token
+        - session
+        authenticated_groups_claim: null
+        authorization_cookie_domain: null
+        authorization_cookie_http_only: true
+        authorization_cookie_name: authorization
+        authorization_cookie_path: /
+        authorization_cookie_same_site: Default
+        authorization_cookie_secure: null
+        authorization_endpoint: null
+        authorization_query_args_client: null
+        authorization_query_args_names: null
+        authorization_query_args_values: null
+        authorization_rolling_timeout: 600
+        bearer_token_cookie_name: null
+        bearer_token_param_type:
+        - header
+        - query
+        - body
+        by_username_ignore_case: false
+        cache_introspection: true
+        cache_token_exchange: true
+        cache_tokens: true
+        cache_tokens_salt: A2mgQ9cgW3hJ75tLA9olRKB0yovpfFw0
+        cache_ttl: 3600
+        cache_ttl_max: null
+        cache_ttl_min: null
+        cache_ttl_neg: null
+        cache_ttl_resurrect: null
+        cache_user_info: true
+        claims_forbidden: null
+        client_alg: null
+        client_arg: client_id
+        client_auth: null
+        client_credentials_param_type:
+        - header
+        - query
+        - body
+        client_id:
+        - '{vault://identity/client_id_banca}'
+        client_jwk: null
+        client_secret:
+        - '{vault://identity/client_secret_banca}'
+        cluster_cache_redis:
+          cloud_authentication:
+            auth_provider: null
+            aws_access_key_id: null
+            aws_assume_role_arn: null
+            aws_cache_name: null
+            aws_is_serverless: true
+            aws_region: null
+            aws_role_session_name: null
+            aws_secret_access_key: null
+            azure_client_id: null
+            azure_client_secret: null
+            azure_tenant_id: null
+            gcp_service_account_json: null
+          cluster_addresses: null
+          cluster_max_redirections: 5
+          cluster_nodes: null
+          connect_timeout: 2000
+          connection_is_proxied: false
+          database: 0
+          host: 127.0.0.1
+          keepalive_backlog: null
+          keepalive_pool_size: 256
+          password: null
+          port: 6379
+          read_timeout: 2000
+          send_timeout: 2000
+          sentinel_addresses: null
+          sentinel_master: null
+          sentinel_nodes: null
+          sentinel_password: null
+          sentinel_role: null
+          sentinel_username: null
+          server_name: null
+          ssl: false
+          ssl_verify: false
+          timeout: 2000
+          username: null
+        cluster_cache_strategy: "off"
+        consumer_by:
+        - username
+        - custom_id
+        consumer_claim:
+        - sub
+        consumer_groups_claim: null
+        consumer_groups_optional: false
+        consumer_optional: false
+        credential_claim:
+        - sub
+        disable_session: null
+        discovery_headers_names: null
+        discovery_headers_values: null
+        display_errors: false
+        domains: null
+        downstream_access_token_header: null
+        downstream_access_token_jwk_header: null
+        downstream_headers_claims: null
+        downstream_headers_names: null
+        downstream_id_token_header: null
+        downstream_id_token_jwk_header: null
+        downstream_introspection_header: null
+        downstream_introspection_jwt_header: null
+        downstream_refresh_token_header: null
+        downstream_session_id_header: null
+        downstream_user_info_header: null
+        downstream_user_info_jwt_header: null
+        dpop_proof_lifetime: 300
+        dpop_use_nonce: false
+        enable_hs_signatures: false
+        end_session_endpoint: null
+        expose_error_code: true
+        extra_jwks_uris: null
+        forbidden_destroy_session: true
+        forbidden_error_message: Forbidden
+        forbidden_redirect_uri: null
+        groups_claim:
+        - groups
+        groups_required: null
+        hide_credentials: false
+        http_proxy: null
+        http_proxy_authorization: null
+        http_version: 1.1
+        https_proxy: null
+        https_proxy_authorization: null
+        id_token_param_name: null
+        id_token_param_type:
+        - header
+        - query
+        - body
+        ignore_signature: []
+        introspect_jwt_tokens: false
+        introspection_accept: application/json
+        introspection_check_active: true
+        introspection_endpoint: null
+        introspection_endpoint_auth_method: null
+        introspection_headers_client: null
+        introspection_headers_names: null
+        introspection_headers_values: null
+        introspection_hint: access_token
+        introspection_post_args_client: null
+        introspection_post_args_client_headers: null
+        introspection_post_args_names: null
+        introspection_post_args_values: null
+        introspection_token_param_name: token
+        issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+        issuers_allowed: null
+        jwt_session_claim: sid
+        jwt_session_cookie: null
+        keepalive: true
+        leeway: 0
+        login_action: upstream
+        login_methods:
+        - authorization_code
+        login_redirect_mode: fragment
+        login_redirect_uri: null
+        login_tokens:
+        - id_token
+        logout_methods:
+        - POST
+        - DELETE
+        logout_post_arg: null
+        logout_query_arg: null
+        logout_redirect_uri: null
+        logout_revoke: false
+        logout_revoke_access_token: true
+        logout_revoke_refresh_token: true
+        logout_uri_suffix: null
+        max_age: null
+        mtls_introspection_endpoint: null
+        mtls_revocation_endpoint: null
+        mtls_token_endpoint: null
+        no_proxy: null
+        password_param_type:
+        - header
+        - query
+        - body
+        preserve_query_args: false
+        proof_of_possession_auth_methods_validation: true
+        proof_of_possession_dpop: "off"
+        proof_of_possession_mtls: "off"
+        pushed_authorization_request_endpoint: null
+        pushed_authorization_request_endpoint_auth_method: null
+        redirect_uri: null
+        redis:
+          cloud_authentication:
+            auth_provider: null
+            aws_access_key_id: null
+            aws_assume_role_arn: null
+            aws_cache_name: null
+            aws_is_serverless: true
+            aws_region: null
+            aws_role_session_name: null
+            aws_secret_access_key: null
+            azure_client_id: null
+            azure_client_secret: null
+            azure_tenant_id: null
+            gcp_service_account_json: null
+          cluster_addresses: null
+          cluster_max_redirections: 5
+          cluster_nodes: null
+          connect_timeout: 2000
+          connection_is_proxied: false
+          database: 0
+          host: 127.0.0.1
+          keepalive_backlog: null
+          keepalive_pool_size: 256
+          password: null
+          port: 6379
+          prefix: null
+          read_timeout: 2000
+          send_timeout: 2000
+          sentinel_addresses: null
+          sentinel_master: null
+          sentinel_nodes: null
+          sentinel_password: null
+          sentinel_role: null
+          sentinel_username: null
+          server_name: null
+          socket: null
+          ssl: false
+          ssl_verify: false
+          timeout: 2000
+          username: null
+        rediscovery_lifetime: 30
+        refresh_token_param_name: null
+        refresh_token_param_type:
+        - header
+        - query
+        - body
+        refresh_tokens: true
+        require_proof_key_for_code_exchange: null
+        require_pushed_authorization_requests: null
+        require_signed_request_object: null
+        resolve_distributed_claims: false
+        response_mode: query
+        response_type:
+        - code
+        reverify: false
+        revocation_endpoint: null
+        revocation_endpoint_auth_method: null
+        revocation_token_param_name: token
+        roles_claim:
+        - roles
+        roles_required: null
+        run_on_preflight: true
+        scopes:
+        - openid
+        scopes_claim:
+        - scope
+        scopes_required: null
+        search_user_info: false
+        session_absolute_timeout: 86400
+        session_audience: default
+        session_bind: null
+        session_compressor: none
+        session_cookie_domain: null
+        session_cookie_http_only: true
+        session_cookie_maxsize: 4000
+        session_cookie_name: session
+        session_cookie_path: /
+        session_cookie_renew: 600
+        session_cookie_same_site: Lax
+        session_cookie_secure: null
+        session_enforce_same_subject: false
+        session_hash_storage_key: false
+        session_hash_subject: false
+        session_idling_timeout: 900
+        session_memcached_host: 127.0.0.1
+        session_memcached_port: 11211
+        session_memcached_prefix: null
+        session_memcached_socket: null
+        session_memcached_ssl: false
+        session_memcached_ssl_verify: false
+        session_redis_cluster_max_redirections: 5
+        session_redis_cluster_nodes: null
+        session_redis_connect_timeout: 2000
+        session_redis_host: 127.0.0.1
+        session_redis_password: null
+        session_redis_port: 6379
+        session_redis_prefix: null
+        session_redis_read_timeout: 2000
+        session_redis_send_timeout: 2000
+        session_redis_server_name: null
+        session_redis_socket: null
+        session_redis_ssl: false
+        session_redis_ssl_verify: false
+        session_redis_username: null
+        session_remember: false
+        session_remember_absolute_timeout: 2592000
+        session_remember_cookie_name: remember
+        session_remember_rolling_timeout: 604800
+        session_request_headers: null
+        session_response_headers: null
+        session_rolling_timeout: 3600
+        session_secret: null
+        session_storage: cookie
+        session_store_metadata: false
+        session_strategy: default
+        ssl_verify: false
+        timeout: 10000
+        tls_client_auth_cert_id: null
+        tls_client_auth_ssl_verify: true
+        token_cache_key_include_scope: false
+        token_endpoint: null
+        token_endpoint_auth_method: null
+        token_exchange_endpoint: null
+        token_headers_client: null
+        token_headers_grants: null
+        token_headers_names: null
+        token_headers_prefix: null
+        token_headers_replay: null
+        token_headers_values: null
+        token_post_args_client: null
+        token_post_args_names: null
+        token_post_args_values: null
+        unauthorized_destroy_session: true
+        unauthorized_error_message: Unauthorized
+        unauthorized_redirect_uri: null
+        unexpected_redirect_uri: null
+        upstream_access_token_header: authorization:bearer
+        upstream_access_token_jwk_header: null
+        upstream_headers_claims: null
+        upstream_headers_names: null
+        upstream_id_token_header: null
+        upstream_id_token_jwk_header: null
+        upstream_introspection_header: null
+        upstream_introspection_jwt_header: null
+        upstream_refresh_token_header: null
+        upstream_session_id_header: null
+        upstream_user_info_header: null
+        upstream_user_info_jwt_header: null
+        userinfo_accept: application/json
+        userinfo_endpoint: null
+        userinfo_headers_client: null
+        userinfo_headers_names: null
+        userinfo_headers_values: null
+        userinfo_query_args_client: null
+        userinfo_query_args_names: null
+        userinfo_query_args_values: null
+        using_pseudo_issuer: false
+        verify_claims: true
+        verify_nonce: true
+        verify_parameters: false
+        verify_signature: true
+      enabled: true
+      id: fee0b1c6-d6e2-4e70-9afe-84ee86cfd8cf
+      instance_name: Banca-Auth-Logout-OIDC
+      name: openid-connect
+      protocols:
+      - grpc
+      - grpcs
+      - http
+      - https
+    - config:
+        access:
+        - |2-
+           kong.service.request.clear_header("Authorization")
+           kong.service.request.clear_header("authorization")
+        body_filter: []
+        certificate: []
+        functions: []
+        header_filter: []
+        log: []
+        rewrite: []
+        ws_client_frame: []
+        ws_close: []
+        ws_handshake: []
+        ws_upstream_frame: []
+      enabled: true
+      id: d42d4306-647e-42e3-9d95-bcce5661c87d
+      instance_name: Post-AuthLogout-Banca
+      name: post-function
+      protocols:
+      - grpc
+      - grpcs
+      - http
+      - https
+    - config:
+        add:
+          body: []
+          headers: []
+          querystring: []
+        append:
+          body: []
+          headers: []
+          querystring: []
+        http_method: null
+        remove:
+          body: []
+          headers: []
+          querystring: []
+        rename:
+          body: []
+          headers: []
+          querystring: []
+        replace:
+          body: []
+          headers: []
+          querystring: []
+          uri: /BancaWebApi/UAT/account/Logout
+      enabled: true
+      id: aa9e3df8-3c90-4517-af97-047c5ec9566a
+      name: request-transformer
       protocols:
       - grpc
       - grpcs
@@ -1825,6 +2424,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: eb9481a1-19d0-4296-90f2-4468ae4a6765
     name: banca-web-calculate-route
     path_handling: v0
     paths:
@@ -2191,6 +2791,7 @@ services:
         verify_parameters: false
         verify_signature: true
       enabled: true
+      id: a36d33ac-330c-4248-acf4-89fd36f5ded3
       instance_name: Banca-Web-Calculate-OIDC
       name: openid-connect
       protocols:
@@ -2220,12 +2821,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: fcd9c7c0-d971-44c1-8c24-ef8eabbc94aa
       instance_name: Banca-Web-Calculate-Post-Plugin
       name: post-function
-      ordering:
-        after:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -2252,12 +2850,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: 1b227b3b-a182-4b55-94e2-bfad6893ea8c
       instance_name: Banca-Web-Calculate-Pre-Plugin
       name: pre-function
-      ordering:
-        before:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -2287,6 +2882,7 @@ services:
           querystring: []
           uri: /BancaWebApi/UAT/DataTransfer/calculate
       enabled: true
+      id: 913e9c89-42c3-464e-a0af-923d4bf04ec2
       name: request-transformer
       protocols:
       - grpc
@@ -2303,6 +2899,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my
     https_redirect_status_code: 426
+    id: 974e0739-d739-4c46-8e91-794692b8d6d1
     name: banca-web-quotation-route
     path_handling: v0
     paths:
@@ -2669,6 +3266,7 @@ services:
         verify_parameters: false
         verify_signature: true
       enabled: true
+      id: f622aaaf-bc87-4243-a28b-3ef068f69fd8
       instance_name: Banca-Web-eQuotation-OIDC
       name: openid-connect
       protocols:
@@ -2698,12 +3296,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: 251d58a8-9dda-4de9-95be-68b99881a5a7
       instance_name: Banca-Web-Post-Plugin
       name: post-function
-      ordering:
-        after:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -2730,12 +3325,9 @@ services:
         ws_handshake: []
         ws_upstream_frame: []
       enabled: true
+      id: 049ec8f6-ef22-4bb7-a8e4-b7fbb19e6a40
       instance_name: Banca-Web-Pre-Plugin
       name: pre-function
-      ordering:
-        before:
-          access:
-          - openid-connect
       protocols:
       - grpc
       - grpcs
@@ -2765,6 +3357,7 @@ services:
           querystring: []
           uri: /BancaWebApi/UAT/DataTransfer/eQuotation
       enabled: true
+      id: 06bf706e-b33d-4393-88cc-0c32455e1409
       name: request-transformer
       protocols:
       - grpc
@@ -2779,9 +3372,10 @@ services:
     response_buffering: true
     strip_path: true
   write_timeout: 60000
-- connect_timeout: 60000
+- connect_timeout: 120000
   enabled: true
   host: bancaapiuat.mytakafulpartners.com.my
+  id: 51393152-9bba-41a2-9b10-7ed7aa37c2a9
   name: ClaimHistory-Storm-API
   plugins:
   - config:
@@ -2789,6 +3383,7 @@ services:
       path: /usr/local/kong/logs/transaction.log
       reopen: false
     enabled: true
+    id: a13f268c-a196-4a1c-8310-2ddabf0f9dca
     name: file-log
     protocols:
     - grpc
@@ -3157,6 +3752,7 @@ services:
       verify_parameters: false
       verify_signature: true
     enabled: true
+    id: 84412ee4-8bbb-4a82-bfa1-fed09e7a4c5f
     instance_name: ClaimHistory-Storm-OIDC
     name: openid-connect
     protocols:
@@ -3166,12 +3762,13 @@ services:
     - https
   port: 443
   protocol: https
-  read_timeout: 60000
+  read_timeout: 120000
   retries: 5
   routes:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: 0d2321aa-7754-442e-954c-1aab3a3337bc
     name: claimhistory-storm-account-route
     path_handling: v0
     paths:
@@ -3201,6 +3798,7 @@ services:
           querystring: []
           uri: /storm/api/Account
       enabled: true
+      id: ba138067-0862-44b7-9e7a-842fbbadb326
       name: request-transformer
       protocols:
       - grpc
@@ -3217,6 +3815,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: b9954d19-d29a-490a-a4bb-e4635cc88eac
     name: claimhistory-storm-velogica-route
     path_handling: v0
     paths:
@@ -3244,8 +3843,9 @@ services:
           body: []
           headers: []
           querystring: []
-          uri: storm/api/Velogica
+          uri: /storm/api/Velogica
       enabled: true
+      id: 51eff282-a540-40a6-ac53-06a2d9299f37
       name: request-transformer
       protocols:
       - grpc
@@ -3260,10 +3860,11 @@ services:
     response_buffering: true
     strip_path: true
   tls_verify: false
-  write_timeout: 60000
+  write_timeout: 120000
 - connect_timeout: 60000
   enabled: true
   host: mp7mutb2n53dfygk.sg.identity.konghq.com
+  id: 1a511ef9-922d-4cea-b33e-da8d0a5dac58
   name: Dev-OnPremise-Get-Token
   path: /auth/oauth/token
   plugins:
@@ -3272,6 +3873,7 @@ services:
       path: /usr/local/kong/logs/transaction.log
       reopen: false
     enabled: true
+    id: 792de478-2ad3-447a-a9db-283475dc10b2
     name: file-log
     protocols:
     - grpc
@@ -3286,6 +3888,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: 47424d3c-a1b7-4345-9c0f-70f21e552535
     name: OIDC-Get-Token
     path_handling: v0
     paths:
@@ -3301,6 +3904,7 @@ services:
 - connect_timeout: 60000
   enabled: true
   host: 10.30.101.166
+  id: 9cf14310-507f-49a8-8af5-a71e9e86ad3f
   name: KYC-WSManager-API
   plugins:
   - config:
@@ -3308,6 +3912,7 @@ services:
       path: /usr/local/kong/logs/transaction.log
       reopen: false
     enabled: true
+    id: fa7e7d7a-5705-4b1e-b26e-2856eff16000
     name: file-log
     protocols:
     - grpc
@@ -3676,6 +4281,7 @@ services:
       verify_parameters: false
       verify_signature: true
     enabled: true
+    id: aa654e32-b238-4555-997f-fc904d066a28
     instance_name: KYC-WSManager-OIDC
     name: openid-connect
     protocols:
@@ -3691,6 +4297,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: eae9bb51-9426-489e-9d29-38bba9a9cf93
     name: kyc-wsmanager-input-add-route
     path_handling: v0
     paths:
@@ -3721,7 +4328,8 @@ services:
         strategy: redis
         vary_headers: null
         vary_query_params: null
-      enabled: true
+      enabled: false
+      id: e73a3090-faf6-488a-8193-0c3cbf71c546
       name: proxy-cache-advanced
       partials:
       - id: 4b4dbb79-bbab-4698-89cb-7d0dcf304e80
@@ -3756,6 +4364,7 @@ services:
           querystring: []
           uri: /WSManager/api/kycInput/add
       enabled: true
+      id: 5a2b99c4-9ea6-4450-b79f-b571835a239f
       name: request-transformer
       protocols:
       - grpc
@@ -3772,6 +4381,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: bf3f863c-b9f7-4d60-86d4-8c7f84f71f24
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
     paths:
@@ -3801,6 +4411,7 @@ services:
           querystring: []
           uri: /WSManager/api/kyc/riskscore/getLatestRiskScore
       enabled: true
+      id: c12d4ae0-6d9b-4dad-9e6a-de275273042e
       name: request-transformer
       protocols:
       - grpc
@@ -3817,6 +4428,7 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    id: cec39b0b-68d0-4794-86ac-ac5f94d52a91
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
     paths:
@@ -3846,6 +4458,7 @@ services:
           querystring: []
           uri: /WSManager/api/kycTopic/get
       enabled: true
+      id: 59df2bc8-3dfa-4c9c-97ef-5fd2b6913889
       name: request-transformer
       protocols:
       - grpc
@@ -3860,8 +4473,434 @@ services:
     response_buffering: true
     strip_path: true
   write_timeout: 60000
+- connect_timeout: 60000
+  enabled: true
+  host: api.kong-air.com
+  id: 1fb60256-86a4-4879-a1b9-252e4fe032ec
+  name: new-service-20260325145759917
+  path: /flights
+  plugins:
+  - config:
+      anonymous: null
+      audience: null
+      audience_claim:
+      - dev-onprem
+      audience_required: []
+      auth_methods:
+      - password
+      - client_credentials
+      - authorization_code
+      - bearer
+      - introspection
+      - userinfo
+      - kong_oauth2
+      - refresh_token
+      - session
+      authenticated_groups_claim: null
+      authorization_cookie_domain: null
+      authorization_cookie_http_only: true
+      authorization_cookie_name: authorization
+      authorization_cookie_path: /
+      authorization_cookie_same_site: Default
+      authorization_cookie_secure: null
+      authorization_endpoint: null
+      authorization_query_args_client: null
+      authorization_query_args_names: null
+      authorization_query_args_values: null
+      authorization_rolling_timeout: 600
+      bearer_token_cookie_name: null
+      bearer_token_param_type:
+      - header
+      - query
+      - body
+      by_username_ignore_case: false
+      cache_introspection: true
+      cache_token_exchange: true
+      cache_tokens: true
+      cache_tokens_salt: PEi04ChYFndb2JJAuLQ3tzdhAftgVbWs
+      cache_ttl: 3600
+      cache_ttl_max: null
+      cache_ttl_min: null
+      cache_ttl_neg: null
+      cache_ttl_resurrect: null
+      cache_user_info: true
+      claims_forbidden: null
+      client_alg: null
+      client_arg: client_id
+      client_auth: null
+      client_credentials_param_type:
+      - header
+      - query
+      - body
+      client_id:
+      - 7xhj9fal3ahau9qh
+      client_jwk: null
+      client_secret:
+      - dzv1uu6ce5p4a9npxmc6e9b8
+      cluster_cache_redis:
+        cloud_authentication:
+          auth_provider: null
+          aws_access_key_id: null
+          aws_assume_role_arn: null
+          aws_cache_name: null
+          aws_is_serverless: true
+          aws_region: null
+          aws_role_session_name: null
+          aws_secret_access_key: null
+          azure_client_id: null
+          azure_client_secret: null
+          azure_tenant_id: null
+          gcp_service_account_json: null
+        cluster_addresses: null
+        cluster_max_redirections: 5
+        cluster_nodes: null
+        connect_timeout: 2000
+        connection_is_proxied: false
+        database: 0
+        host: 127.0.0.1
+        keepalive_backlog: null
+        keepalive_pool_size: 256
+        password: null
+        port: 6379
+        read_timeout: 2000
+        send_timeout: 2000
+        sentinel_addresses: null
+        sentinel_master: null
+        sentinel_nodes: null
+        sentinel_password: null
+        sentinel_role: null
+        sentinel_username: null
+        server_name: null
+        ssl: false
+        ssl_verify: false
+        timeout: 2000
+        username: null
+      cluster_cache_strategy: "off"
+      consumer_by:
+      - username
+      - custom_id
+      consumer_claim:
+      - sub
+      consumer_groups_claim: null
+      consumer_groups_optional: false
+      consumer_optional: false
+      credential_claim:
+      - sub
+      disable_session: null
+      discovery_headers_names: null
+      discovery_headers_values: null
+      display_errors: false
+      domains: null
+      downstream_access_token_header: null
+      downstream_access_token_jwk_header: null
+      downstream_headers_claims: null
+      downstream_headers_names: null
+      downstream_id_token_header: null
+      downstream_id_token_jwk_header: null
+      downstream_introspection_header: null
+      downstream_introspection_jwt_header: null
+      downstream_refresh_token_header: null
+      downstream_session_id_header: null
+      downstream_user_info_header: null
+      downstream_user_info_jwt_header: null
+      dpop_proof_lifetime: 300
+      dpop_use_nonce: false
+      enable_hs_signatures: false
+      end_session_endpoint: null
+      expose_error_code: true
+      extra_jwks_uris: null
+      forbidden_destroy_session: true
+      forbidden_error_message: Forbidden
+      forbidden_redirect_uri: null
+      groups_claim:
+      - groups
+      groups_required: null
+      hide_credentials: false
+      http_proxy: null
+      http_proxy_authorization: null
+      http_version: 1.1
+      https_proxy: null
+      https_proxy_authorization: null
+      id_token_param_name: null
+      id_token_param_type:
+      - header
+      - query
+      - body
+      ignore_signature: []
+      introspect_jwt_tokens: false
+      introspection_accept: application/json
+      introspection_check_active: true
+      introspection_endpoint: null
+      introspection_endpoint_auth_method: null
+      introspection_headers_client: null
+      introspection_headers_names: null
+      introspection_headers_values: null
+      introspection_hint: access_token
+      introspection_post_args_client: null
+      introspection_post_args_client_headers: null
+      introspection_post_args_names: null
+      introspection_post_args_values: null
+      introspection_token_param_name: token
+      issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
+      issuers_allowed: null
+      jwt_session_claim: sid
+      jwt_session_cookie: null
+      keepalive: true
+      leeway: 0
+      login_action: upstream
+      login_methods:
+      - authorization_code
+      login_redirect_mode: fragment
+      login_redirect_uri: null
+      login_tokens:
+      - id_token
+      logout_methods:
+      - POST
+      - DELETE
+      logout_post_arg: null
+      logout_query_arg: null
+      logout_redirect_uri: null
+      logout_revoke: false
+      logout_revoke_access_token: true
+      logout_revoke_refresh_token: true
+      logout_uri_suffix: null
+      max_age: null
+      mtls_introspection_endpoint: null
+      mtls_revocation_endpoint: null
+      mtls_token_endpoint: null
+      no_proxy: null
+      password_param_type:
+      - header
+      - query
+      - body
+      preserve_query_args: false
+      proof_of_possession_auth_methods_validation: true
+      proof_of_possession_dpop: "off"
+      proof_of_possession_mtls: "off"
+      pushed_authorization_request_endpoint: null
+      pushed_authorization_request_endpoint_auth_method: null
+      redirect_uri: null
+      redis:
+        cloud_authentication:
+          auth_provider: null
+          aws_access_key_id: null
+          aws_assume_role_arn: null
+          aws_cache_name: null
+          aws_is_serverless: true
+          aws_region: null
+          aws_role_session_name: null
+          aws_secret_access_key: null
+          azure_client_id: null
+          azure_client_secret: null
+          azure_tenant_id: null
+          gcp_service_account_json: null
+        cluster_addresses: null
+        cluster_max_redirections: 5
+        cluster_nodes: null
+        connect_timeout: 2000
+        connection_is_proxied: false
+        database: 0
+        host: 127.0.0.1
+        keepalive_backlog: null
+        keepalive_pool_size: 256
+        password: null
+        port: 6379
+        prefix: null
+        read_timeout: 2000
+        send_timeout: 2000
+        sentinel_addresses: null
+        sentinel_master: null
+        sentinel_nodes: null
+        sentinel_password: null
+        sentinel_role: null
+        sentinel_username: null
+        server_name: null
+        socket: null
+        ssl: false
+        ssl_verify: false
+        timeout: 2000
+        username: null
+      rediscovery_lifetime: 30
+      refresh_token_param_name: null
+      refresh_token_param_type:
+      - header
+      - query
+      - body
+      refresh_tokens: true
+      require_proof_key_for_code_exchange: null
+      require_pushed_authorization_requests: null
+      require_signed_request_object: null
+      resolve_distributed_claims: false
+      response_mode: query
+      response_type:
+      - code
+      reverify: false
+      revocation_endpoint: null
+      revocation_endpoint_auth_method: null
+      revocation_token_param_name: token
+      roles_claim:
+      - roles
+      roles_required: null
+      run_on_preflight: true
+      scopes:
+      - openid
+      scopes_claim:
+      - scope
+      scopes_required: null
+      search_user_info: false
+      session_absolute_timeout: 86400
+      session_audience: default
+      session_bind: null
+      session_compressor: none
+      session_cookie_domain: null
+      session_cookie_http_only: true
+      session_cookie_maxsize: 4000
+      session_cookie_name: session
+      session_cookie_path: /
+      session_cookie_renew: 600
+      session_cookie_same_site: Lax
+      session_cookie_secure: null
+      session_enforce_same_subject: false
+      session_hash_storage_key: false
+      session_hash_subject: false
+      session_idling_timeout: 900
+      session_memcached_host: 127.0.0.1
+      session_memcached_port: 11211
+      session_memcached_prefix: null
+      session_memcached_socket: null
+      session_memcached_ssl: false
+      session_memcached_ssl_verify: false
+      session_redis_cluster_max_redirections: 5
+      session_redis_cluster_nodes: null
+      session_redis_connect_timeout: 2000
+      session_redis_host: 127.0.0.1
+      session_redis_password: null
+      session_redis_port: 6379
+      session_redis_prefix: null
+      session_redis_read_timeout: 2000
+      session_redis_send_timeout: 2000
+      session_redis_server_name: null
+      session_redis_socket: null
+      session_redis_ssl: false
+      session_redis_ssl_verify: false
+      session_redis_username: null
+      session_remember: false
+      session_remember_absolute_timeout: 2592000
+      session_remember_cookie_name: remember
+      session_remember_rolling_timeout: 604800
+      session_request_headers: null
+      session_response_headers: null
+      session_rolling_timeout: 3600
+      session_secret: null
+      session_storage: cookie
+      session_store_metadata: false
+      session_strategy: default
+      ssl_verify: false
+      timeout: 10000
+      tls_client_auth_cert_id: null
+      tls_client_auth_ssl_verify: true
+      token_cache_key_include_scope: false
+      token_endpoint: null
+      token_endpoint_auth_method: null
+      token_exchange_endpoint: null
+      token_headers_client: null
+      token_headers_grants: null
+      token_headers_names: null
+      token_headers_prefix: null
+      token_headers_replay: null
+      token_headers_values: null
+      token_post_args_client: null
+      token_post_args_names: null
+      token_post_args_values: null
+      unauthorized_destroy_session: true
+      unauthorized_error_message: Unauthorized
+      unauthorized_redirect_uri: null
+      unexpected_redirect_uri: null
+      upstream_access_token_header: authorization:bearer
+      upstream_access_token_jwk_header: null
+      upstream_headers_claims: null
+      upstream_headers_names: null
+      upstream_id_token_header: null
+      upstream_id_token_jwk_header: null
+      upstream_introspection_header: null
+      upstream_introspection_jwt_header: null
+      upstream_refresh_token_header: null
+      upstream_session_id_header: null
+      upstream_user_info_header: null
+      upstream_user_info_jwt_header: null
+      userinfo_accept: application/json
+      userinfo_endpoint: null
+      userinfo_headers_client: null
+      userinfo_headers_names: null
+      userinfo_headers_values: null
+      userinfo_query_args_client: null
+      userinfo_query_args_names: null
+      userinfo_query_args_values: null
+      using_pseudo_issuer: false
+      verify_claims: true
+      verify_nonce: true
+      verify_parameters: false
+      verify_signature: true
+    enabled: true
+    id: 0a899635-905b-4211-8f2f-6ea0fef6c30a
+    name: openid-connect
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+  port: 443
+  protocol: https
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - hosts:
+    - kong-api-dev.takaful-malaysia.com.my
+    https_redirect_status_code: 426
+    id: 7a49eaab-e568-4f87-98cf-9f26084f64f5
+    name: new-route-20260325145921075
+    path_handling: v0
+    paths:
+    - /api/flight
+    preserve_host: false
+    protocols:
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
+- connect_timeout: 60000
+  enabled: true
+  host: wintelappuat.takaful-malaysia.com.my
+  id: e37b4707-462a-4763-8e87-a9d92f4de0fa
+  name: test-service
+  port: 80
+  protocol: http
+  read_timeout: 60000
+  retries: 5
+  routes:
+  - hosts:
+    - kong-api-dev.takaful-malaysia.com.my:443
+    https_redirect_status_code: 426
+    id: fc804eee-65da-40c7-b22b-91588300e6c9
+    methods:
+    - POST
+    name: test-svc-route
+    path_handling: v0
+    paths:
+    - /BancaWebApi/UAT/account/Logingin
+    preserve_host: false
+    protocols:
+    - https
+    regex_priority: 0
+    request_buffering: true
+    response_buffering: true
+    strip_path: true
+  write_timeout: 60000
 vaults:
 - config:
     config_store_id: b63aa892-bc69-4c57-9452-e2d16750f244
+  id: 070e4e36-4424-405d-ad58-f589ab486c1c
   name: konnect
   prefix: identity
