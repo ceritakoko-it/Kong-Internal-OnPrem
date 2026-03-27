@@ -4,6 +4,9 @@
     "host": "__GET_TOKEN_SERVICE_HOST__"
     "name": "__GET_TOKEN_SERVICE_NAME__"
     "path": "/auth/oauth/token"
+    "tags":
+      - "Token"
+      - "service:get-token-service"
     "plugins":
       - "config":
           "custom_fields_by_lua": {}

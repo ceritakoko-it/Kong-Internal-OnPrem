@@ -3,6 +3,9 @@
     "enabled": true
     "host": "__AML_REST_SERVICE_HOST__"
     "name": "AML-Rest-Services"
+    "tags":
+      - "AMLA"
+      - "service:aml-rest-services"
     "plugins":
       - "config":
           "custom_fields_by_lua": {}

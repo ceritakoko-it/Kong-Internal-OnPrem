@@ -3,6 +3,8 @@
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "OIDC-Get-Token"
     "path_handling": "v0"
     "paths":
@@ -14,5 +16,8 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Token"
+      - "route:oidc-get-token"
     "service":
       "name": "__GET_TOKEN_SERVICE_NAME__"

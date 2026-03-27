@@ -3,6 +3,8 @@
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "aml-restsvc-route"
     "path_handling": "v0"
     "paths":
@@ -45,12 +47,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "AMLA"
+      - "route:aml-restsvc-route"
     "service":
       "name": "AML-Rest-Services"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "aml-restsvcab-scan"
     "path_handling": "v0"
     "paths":
@@ -93,5 +100,8 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "AMLA"
+      - "route:aml-restsvcab-scan"
     "service":
       "name": "AML-Rest-Services"

@@ -23,8 +23,8 @@
         "instance_name": "Standard-ClaimHistory-RateLimit-Advanced"
         "name": "rate-limiting-advanced"
         "partials":
-          - "id": "__REDIS_PARTIAL_ID__"
-            "name": "__REDIS_PARTIAL_NAME__"
+          - "id": "__ACTIVE_REDIS_PARTIAL_ID__"
+            "name": "__ACTIVE_REDIS_PARTIAL_NAME__"
             "path": "config.redis"
         "protocols":
           - "grpc"

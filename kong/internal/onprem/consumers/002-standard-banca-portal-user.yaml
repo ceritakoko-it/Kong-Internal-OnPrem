@@ -24,8 +24,8 @@
         "enabled": true
         "name": "rate-limiting"
         "partials":
-          - "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
-            "name": "__REDIS_PARTIAL_NAME__"
+          - "id": "__ACTIVE_REDIS_PARTIAL_ID__"
+            "name": "__ACTIVE_REDIS_PARTIAL_NAME__"
             "path": "config.redis"
         "protocols":
           - "grpc"

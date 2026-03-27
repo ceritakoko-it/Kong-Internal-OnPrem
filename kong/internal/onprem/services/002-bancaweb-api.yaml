@@ -3,6 +3,9 @@
     "enabled": true
     "host": "__BANCAWEB_SERVICE_HOST__"
     "name": "BancaWeb-API"
+    "tags":
+      - "Banca"
+      - "service:bancaweb-api"
     "plugins":
       - "config":
           "custom_fields_by_lua": {}
