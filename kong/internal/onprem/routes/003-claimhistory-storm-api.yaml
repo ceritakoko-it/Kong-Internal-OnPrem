@@ -3,6 +3,8 @@
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "claimhistory-storm-account-route"
     "path_handling": "v0"
     "paths":
@@ -45,12 +47,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "ClaimHistory"
+      - "route:claimhistory-storm-account-route"
     "service":
       "name": "ClaimHistory-Storm-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "claimhistory-storm-velogica-route"
     "path_handling": "v0"
     "paths":
@@ -93,5 +100,8 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "ClaimHistory"
+      - "route:claimhistory-storm-velogica-route"
     "service":
       "name": "ClaimHistory-Storm-API"

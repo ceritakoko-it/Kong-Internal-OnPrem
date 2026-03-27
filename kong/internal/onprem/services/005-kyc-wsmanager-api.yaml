@@ -3,6 +3,9 @@
     "enabled": true
     "host": "__KYC_WSMANAGER_SERVICE_HOST__"
     "name": "KYC-WSManager-API"
+    "tags":
+      - "KYC"
+      - "service:kyc-wsmanager-api"
     "plugins":
       - "config":
           "custom_fields_by_lua": {}

@@ -3,6 +3,8 @@
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "banca-auth-authenticate-route"
     "path_handling": "v0"
     "paths":
@@ -479,12 +481,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Banca"
+      - "route:banca-auth-authenticate-route"
     "service":
       "name": "BancaWeb-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "banca-auth-login-route"
     "path_handling": "v0"
     "paths":
@@ -918,12 +925,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Banca"
+      - "route:banca-auth-login-route"
     "service":
       "name": "BancaWeb-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "banca-auth-logout-route"
     "path_handling": "v0"
     "paths":
@@ -1358,12 +1370,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Banca"
+      - "route:banca-auth-logout-route"
     "service":
       "name": "BancaWeb-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "banca-web-calculate-route"
     "path_handling": "v0"
     "paths":
@@ -1840,12 +1857,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Banca"
+      - "route:banca-web-calculate-route"
     "service":
       "name": "BancaWeb-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "banca-web-quotation-route"
     "path_handling": "v0"
     "paths":
@@ -2322,5 +2344,8 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "Banca"
+      - "route:banca-web-quotation-route"
     "service":
       "name": "BancaWeb-API"

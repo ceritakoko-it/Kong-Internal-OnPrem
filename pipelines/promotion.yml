@@ -86,25 +86,10 @@ stages:
             RENDER_OVERRIDE_ENV_FILE="$(Pipeline.Workspace)/rendered/prod-onprem-dr-redis.override.env"
             mkdir -p "$(dirname "$RENDER_OVERRIDE_ENV_FILE")"
             printf '%s\n' \
-              "REDIS_PARTIAL_ID=2d1c4ad9-7962-4a7e-a4af-d8cf2d976101" \
-              "REDIS_PARTIAL_NAME=on-premise-dr-redis" \
-              "REDIS_PARTIAL_TYPE=redis-ee" \
-              "REDIS_PARTIAL_HOST=127.0.0.1" \
-              "REDIS_PARTIAL_PASSWORD=null" \
-              "REDIS_PARTIAL_SENTINEL_MASTER='\"on-premise-dr-redis\"'" \
-              "REDIS_PARTIAL_SENTINEL_NODES='[{ \"host\": \"10.30.12.194\", \"port\": 26379 }, { \"host\": \"10.30.12.195\", \"port\": 26379 }]'" \
-              "REDIS_PARTIAL_SENTINEL_PASSWORD='\"dr_onpremredis@2026\"'" \
-              "REDIS_PARTIAL_SENTINEL_ROLE='\"master\"'" \
-              "REDIS_PARTIAL_SENTINEL_USERNAME=null" \
-              "REDIS_CACHE_PARTIAL_ID=5f7c7cbf-cf27-4ae4-8984-f395f5a1d1b9" \
-              "REDIS_CACHE_PARTIAL_NAME=on-premise-dr-redis-cache" \
-              "REDIS_CACHE_HOST=127.0.0.1" \
-              "REDIS_CACHE_PASSWORD=null" \
-              "REDIS_CACHE_SENTINEL_MASTER='\"on-premise-dr-redis\"'" \
-              "REDIS_CACHE_SENTINEL_NODES='[{ \"host\": \"10.30.12.194\", \"port\": 26379 }, { \"host\": \"10.30.12.195\", \"port\": 26379 }]'" \
-              "REDIS_CACHE_SENTINEL_PASSWORD='\"dr_onpremredis@2026\"'" \
-              "REDIS_CACHE_SENTINEL_ROLE='\"master\"'" \
-              "REDIS_CACHE_SENTINEL_USERNAME=null" \
+              "ACTIVE_REDIS_PARTIAL_ID=2d1c4ad9-7962-4a7e-a4af-d8cf2d976101" \
+              "ACTIVE_REDIS_PARTIAL_NAME=on-premise-dr-redis" \
+              "ACTIVE_REDIS_CACHE_PARTIAL_ID=5f7c7cbf-cf27-4ae4-8984-f395f5a1d1b9" \
+              "ACTIVE_REDIS_CACHE_PARTIAL_NAME=on-premise-dr-redis-cache" \
               > "$RENDER_OVERRIDE_ENV_FILE"
           else
             ENV_FILE="kong/env/user/${TARGET_ENV_LOWER}-onprem.env"
@@ -199,6 +184,13 @@ stages:
         KONG_TOKEN: $(KONG_TOKEN)
         KONG_ADDR: $(KONG_ADDR)
         RESOLVED_CONTROL_PLANE: $(RESOLVED_CONTROL_PLANE)
+
+    - bash: |
+        set -euo pipefail
+        bash scripts/validate-rendered-redis-partials.sh "$RESOLVED_TARGET_PATH"
+      displayName: Validate rendered Redis partial references
+      env:
+        RESOLVED_TARGET_PATH: $(RESOLVED_TARGET_PATH)
 
     - bash: |
         set -euo pipefail

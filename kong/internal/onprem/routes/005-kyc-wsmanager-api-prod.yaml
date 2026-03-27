@@ -3,6 +3,8 @@
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "POST"
     "name": "kyc-wsmanager-input-add-route"
     "path_handling": "v0"
     "paths":
@@ -45,12 +47,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "KYC"
+      - "route:kyc-wsmanager-input-add-route"
     "service":
       "name": "KYC-WSManager-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "GET"
     "name": "kyc-wsmanager-kyc-risk-score-latest-route"
     "path_handling": "v0"
     "paths":
@@ -167,12 +174,17 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "KYC"
+      - "route:kyc-wsmanager-kyc-risk-score-latest-route"
     "service":
       "name": "KYC-WSManager-API"
   - "hosts":
       - "__PUBLIC_HOST_PRIMARY_TLS__"
       - "__OPTIONAL_PUBLIC_HOST_SECONDARY_TLS__"
     "https_redirect_status_code": 426
+    "methods":
+      - "GET"
     "name": "kyc-wsmanager-kyc-topic-get-route"
     "path_handling": "v0"
     "paths":
@@ -289,5 +301,8 @@
     "request_buffering": true
     "response_buffering": true
     "strip_path": true
+    "tags":
+      - "KYC"
+      - "route:kyc-wsmanager-kyc-topic-get-route"
     "service":
       "name": "KYC-WSManager-API"

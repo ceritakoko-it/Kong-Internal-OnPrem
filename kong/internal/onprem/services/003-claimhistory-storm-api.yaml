@@ -3,6 +3,9 @@
     "enabled": true
     "host": "__CLAIMHISTORY_STORM_SERVICE_HOST__"
     "name": "ClaimHistory-Storm-API"
+    "tags":
+      - "ClaimHistory"
+      - "service:claimhistory-storm-api"
     "plugins":
       - "config":
           "custom_fields_by_lua": {}
