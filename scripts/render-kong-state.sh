@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  echo "Usage: $0 <template_dir> <env_file> <output_dir>"
+if [ "$#" -ne 3 ] && [ "$#" -ne 4 ]; then
+  echo "Usage: $0 <template_dir> <env_file> <output_dir> [override_env_file]"
   exit 1
 fi
 
 TEMPLATE_DIR="$1"
 ENV_FILE="$2"
 OUTPUT_DIR="$3"
+OVERRIDE_ENV_FILE="${4:-}"
 
 test -d "$TEMPLATE_DIR" || { echo "Template directory not found: $TEMPLATE_DIR"; exit 1; }
 test -f "$ENV_FILE" || { echo "Environment file not found: $ENV_FILE"; exit 1; }
@@ -25,6 +26,11 @@ if [ -f "$SYSTEM_ENV_FILE" ]; then
 fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
+if [ -n "$OVERRIDE_ENV_FILE" ]; then
+  test -f "$OVERRIDE_ENV_FILE" || { echo "Override file not found: $OVERRIDE_ENV_FILE"; exit 1; }
+  # shellcheck disable=SC1090
+  source "$OVERRIDE_ENV_FILE"
+fi
 set +a
 
 required_vars=(
@@ -72,30 +78,6 @@ required_vars=(
   STANDARD_CLAIM_HISTORY_USER_CUSTOM_ID
 )
 
-if [ "${ENV_TAG_LOWER}" = "prod" ]; then
-  required_vars+=(
-    DR_REDIS_PARTIAL_ID
-    DR_REDIS_PARTIAL_NAME
-    DR_REDIS_PARTIAL_TYPE
-    DR_REDIS_PARTIAL_HOST
-    DR_REDIS_PARTIAL_PASSWORD
-    DR_REDIS_PARTIAL_SENTINEL_MASTER
-    DR_REDIS_PARTIAL_SENTINEL_NODES
-    DR_REDIS_PARTIAL_SENTINEL_PASSWORD
-    DR_REDIS_PARTIAL_SENTINEL_ROLE
-    DR_REDIS_PARTIAL_SENTINEL_USERNAME
-    DR_REDIS_CACHE_PARTIAL_ID
-    DR_REDIS_CACHE_PARTIAL_NAME
-    DR_REDIS_CACHE_HOST
-    DR_REDIS_CACHE_PASSWORD
-    DR_REDIS_CACHE_SENTINEL_MASTER
-    DR_REDIS_CACHE_SENTINEL_NODES
-    DR_REDIS_CACHE_SENTINEL_PASSWORD
-    DR_REDIS_CACHE_SENTINEL_ROLE
-    DR_REDIS_CACHE_SENTINEL_USERNAME
-  )
-fi
-
 for var_name in "${required_vars[@]}"; do
   test -n "${!var_name:-}" || { echo "Missing required variable in $ENV_FILE: $var_name"; exit 1; }
 done
@@ -104,26 +86,13 @@ rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 cp -R "$TEMPLATE_DIR"/. "$OUTPUT_DIR"/
 
-if [ "${ENV_TAG_LOWER}" = "prod" ]; then
-  rm -f "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
-  mv "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml" "$OUTPUT_DIR/partials/001-redis-partial-name.yaml"
-  rm -f "$OUTPUT_DIR/routes/005-kyc-wsmanager-api.yaml"
-  mv "$OUTPUT_DIR/routes/005-kyc-wsmanager-api-prod.yaml" "$OUTPUT_DIR/routes/005-kyc-wsmanager-api.yaml"
-  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
-  mv "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml" "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
-  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
-  mv "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml" "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
-  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
-  mv "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml" "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
-else
-  rm -f "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml"
-  rm -f "$OUTPUT_DIR/partials/004-redis-partial-name-prod-dr.yaml"
-  rm -f "$OUTPUT_DIR/partials/005-redis-cache-partial-name-prod-dr.yaml"
-  rm -f "$OUTPUT_DIR/routes/005-kyc-wsmanager-api-prod.yaml"
-  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml"
-  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml"
-  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml"
-fi
+rm -f "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml"
+rm -f "$OUTPUT_DIR/partials/004-redis-partial-name-prod-dr.yaml"
+rm -f "$OUTPUT_DIR/partials/005-redis-cache-partial-name-prod-dr.yaml"
+rm -f "$OUTPUT_DIR/routes/005-kyc-wsmanager-api-prod.yaml"
+rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml"
+rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml"
+rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml"
 
 find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \) -print0 | while IFS= read -r -d '' file; do
   perl -0pe '
