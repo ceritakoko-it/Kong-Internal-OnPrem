@@ -221,6 +221,30 @@ find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \)
   mv "${file}.tmp" "$file"
 done
 
+if [ "${REDIS_PARTIAL_TYPE}" != "redis-ee" ]; then
+  for partial_file in \
+    "$OUTPUT_DIR/partials/001-redis-partial-name.yaml" \
+    "$OUTPUT_DIR/partials/002-redis-cache-partial-name.yaml"; do
+    if [ -f "$partial_file" ]; then
+      perl -0pi -e '
+        s/^[ \t]*"cluster_max_redirections":.*\r?\n//mg;
+        s/^[ \t]*"cluster_nodes":.*\r?\n//mg;
+        s/^[ \t]*"connect_timeout":.*\r?\n//mg;
+        s/^[ \t]*"connection_is_proxied":.*\r?\n//mg;
+        s/^[ \t]*"keepalive_backlog":.*\r?\n//mg;
+        s/^[ \t]*"keepalive_pool_size":.*\r?\n//mg;
+        s/^[ \t]*"read_timeout":.*\r?\n//mg;
+        s/^[ \t]*"send_timeout":.*\r?\n//mg;
+        s/^[ \t]*"sentinel_master":.*\r?\n//mg;
+        s/^[ \t]*"sentinel_nodes":.*\r?\n//mg;
+        s/^[ \t]*"sentinel_password":.*\r?\n//mg;
+        s/^[ \t]*"sentinel_role":.*\r?\n//mg;
+        s/^[ \t]*"sentinel_username":.*\r?\n//mg;
+      ' "$partial_file"
+    fi
+  done
+fi
+
 if grep -R -n -E '__[A-Z0-9_]+__' "$OUTPUT_DIR" >/dev/null; then
   echo "Unresolved template tokens found in rendered output:"
   grep -R -n -E '__[A-Z0-9_]+__' "$OUTPUT_DIR"
