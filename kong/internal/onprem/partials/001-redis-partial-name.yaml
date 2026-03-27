@@ -1,15 +1,27 @@
 "partials":
   - "config":
       "cloud_authentication": null
+      "cluster_max_redirections": 5
+      "cluster_nodes": null
+      "connect_timeout": 2000
+      "connection_is_proxied": false
       "database": 0
-      "host": "__REDIS_HOST__"
-      "password": "__REDIS_PASSWORD__"
+      "host": "__REDIS_PARTIAL_HOST__"
+      "keepalive_backlog": 0
+      "keepalive_pool_size": 256
+      "password": __REDIS_PARTIAL_PASSWORD__
       "port": 6379
+      "read_timeout": 2000
+      "send_timeout": 2000
+      "sentinel_master": __REDIS_PARTIAL_SENTINEL_MASTER__
+      "sentinel_nodes": __REDIS_PARTIAL_SENTINEL_NODES__
+      "sentinel_password": __REDIS_PARTIAL_SENTINEL_PASSWORD__
+      "sentinel_role": __REDIS_PARTIAL_SENTINEL_ROLE__
+      "sentinel_username": __REDIS_PARTIAL_SENTINEL_USERNAME__
       "server_name": null
       "ssl": false
       "ssl_verify": false
-      "timeout": 2000
       "username": null
     "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
     "name": "__REDIS_PARTIAL_NAME__"
-    "type": "redis-ce"
+    "type": "__REDIS_PARTIAL_TYPE__"
