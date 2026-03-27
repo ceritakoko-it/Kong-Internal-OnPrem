@@ -90,9 +90,19 @@ rm -f "$OUTPUT_DIR/partials/003-redis-partial-name-prod.yaml"
 rm -f "$OUTPUT_DIR/partials/004-redis-partial-name-prod-dr.yaml"
 rm -f "$OUTPUT_DIR/partials/005-redis-cache-partial-name-prod-dr.yaml"
 rm -f "$OUTPUT_DIR/routes/005-kyc-wsmanager-api-prod.yaml"
-rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml"
-rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml"
-rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml"
+
+if [ "${ENV_TAG_LOWER}" = "prod" ] || [ "${ENV_TAG_LOWER}" = "dr" ]; then
+  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
+  mv "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml" "$OUTPUT_DIR/consumers/001-standard-amla-api-user.yaml"
+  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
+  mv "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml" "$OUTPUT_DIR/consumers/002-standard-banca-portal-user.yaml"
+  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
+  mv "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml" "$OUTPUT_DIR/consumers/003-standard-claim-history-user.yaml"
+else
+  rm -f "$OUTPUT_DIR/consumers/001-standard-amla-api-user-prod.yaml"
+  rm -f "$OUTPUT_DIR/consumers/002-standard-banca-portal-user-prod.yaml"
+  rm -f "$OUTPUT_DIR/consumers/003-standard-claim-history-user-prod.yaml"
+fi
 
 find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \) -print0 | while IFS= read -r -d '' file; do
   perl -0pe '
