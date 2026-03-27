@@ -20,10 +20,39 @@
             - 3600
           "window_type": "fixed"
         "enabled": true
+        "instance_name": "Standard-Banca-Prod-RateLimit"
         "name": "rate-limiting-advanced"
         "partials":
           - "id": "498c2db2-f243-4fab-9743-7ef0bfb82512"
             "name": "__REDIS_PARTIAL_NAME__"
+            "path": "config.redis"
+        "protocols":
+          - "grpc"
+          - "grpcs"
+          - "http"
+          - "https"
+      - "config":
+          "disable_penalty": false
+          "error_code": 429
+          "hide_client_headers": false
+          "identifier": "consumer"
+          "limit":
+            - __STANDARD_BANCA_PORTAL_RATE_LIMIT_MINUTE__
+            - __STANDARD_BANCA_PORTAL_RATE_LIMIT_HOUR__
+          "namespace": "standard_banca_portal_user_rate_limit_dr"
+          "retry_after_jitter_max": 0
+          "strategy": "redis"
+          "sync_rate": -1
+          "window_size":
+            - 60
+            - 3600
+          "window_type": "fixed"
+        "enabled": true
+        "instance_name": "Standard-Banca-DR-RateLimit"
+        "name": "rate-limiting-advanced"
+        "partials":
+          - "id": "__DR_REDIS_PARTIAL_ID__"
+            "name": "__DR_REDIS_PARTIAL_NAME__"
             "path": "config.redis"
         "protocols":
           - "grpc"

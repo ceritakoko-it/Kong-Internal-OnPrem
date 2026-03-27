@@ -1,0 +1,43 @@
+parameters:
+- name: controlPlaneName
+  type: string
+
+stages:
+- stage: Ping
+  displayName: Ping Konnect
+  jobs:
+  - job: Ping
+    displayName: decK gateway ping
+    pool:
+      name: cicd-agent
+    steps:
+    - bash: |
+        set -euo pipefail
+        if command -v deck >/dev/null 2>&1; then
+          echo "Using preinstalled decK: $(command -v deck)"
+          deck version
+          exit 0
+        fi
+
+        DECK_VERSION="1.52.0"
+        curl -sL "https://github.com/Kong/deck/releases/download/v${DECK_VERSION}/deck_${DECK_VERSION}_linux_amd64.tar.gz" -o deck.tar.gz
+        tar -xzf deck.tar.gz
+        sudo mv deck /usr/local/bin/deck
+        rm -f deck.tar.gz
+        deck version
+      displayName: Ensure decK is available
+
+    - bash: |
+        set -euo pipefail
+        echo "Control plane: $CONTROL_PLANE_NAME"
+        echo "Konnect address: $KONG_ADDR"
+        echo "KONG_TOKEN_LENGTH=$(printf '%s' "$KONG_TOKEN" | wc -c)"
+        deck gateway ping \
+          --konnect-token "$KONG_TOKEN" \
+          --konnect-addr "$KONG_ADDR" \
+          --konnect-control-plane-name "$CONTROL_PLANE_NAME"
+      displayName: decK gateway ping
+      env:
+        KONG_TOKEN: $(KONG_TOKEN)
+        KONG_ADDR: $(KONG_ADDR)
+        CONTROL_PLANE_NAME: ${{ parameters.controlPlaneName }}

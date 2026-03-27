@@ -1,0 +1,13 @@
+trigger: none
+pr: none
+
+parameters:
+- name: controlPlaneName
+  displayName: Control Plane Name
+  type: string
+  default: Dev-OnPremise
+
+stages:
+- template: pipelines/ping.yml
+  parameters:
+    controlPlaneName: ${{ parameters.controlPlaneName }}
