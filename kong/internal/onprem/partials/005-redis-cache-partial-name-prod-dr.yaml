@@ -24,4 +24,4 @@
       "username": null
     "id": "__DR_REDIS_CACHE_PARTIAL_ID__"
     "name": "__DR_REDIS_CACHE_PARTIAL_NAME__"
-    "type": "redis-ee"
+    "type": "__DR_REDIS_CACHE_PARTIAL_TYPE__"

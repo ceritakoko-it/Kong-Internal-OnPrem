@@ -916,13 +916,13 @@ services:
         audience_required: null
         auth_methods:
         - authorization_code
+        - bearer
         - client_credentials
         - password
         - introspection
         - userinfo
         - kong_oauth2
         - refresh_token
-        - session
         authenticated_groups_claim: null
         authorization_cookie_domain: null
         authorization_cookie_http_only: true
@@ -959,7 +959,8 @@ services:
         - header
         - query
         - body
-        client_id: []
+        client_id:
+        - '{vault://identity/client_id_banca}'
         client_jwk: null
         client_secret:
         - '{vault://identity/client_secret_banca}'
@@ -1312,7 +1313,7 @@ services:
 
           if kong_auth then
               kong.ctx.shared.upstream_token = auth_header
-              kong.service.request.set_header("Authorization", kong_auth)
+              ngx.req.set_header("Authorization", kong_auth)
           end
         body_filter: []
         certificate: []
@@ -2258,13 +2259,13 @@ services:
         audience_required: null
         auth_methods:
         - authorization_code
+        - bearer
         - client_credentials
         - password
         - introspection
         - userinfo
         - kong_oauth2
         - refresh_token
-        - session
         authenticated_groups_claim: null
         authorization_cookie_domain: null
         authorization_cookie_http_only: true
@@ -2655,7 +2656,7 @@ services:
 
           if kong_auth then
               kong.ctx.shared.upstream_token = auth_header
-              kong.service.request.set_header("Authorization", kong_auth)
+              ngx.req.set_header("Authorization", kong_auth)
           end
         body_filter: []
         certificate: []
@@ -2728,13 +2729,13 @@ services:
         audience_required: null
         auth_methods:
         - authorization_code
+        - bearer
         - client_credentials
         - password
         - introspection
         - userinfo
         - kong_oauth2
         - refresh_token
-        - session
         authenticated_groups_claim: null
         authorization_cookie_domain: null
         authorization_cookie_http_only: true
@@ -3125,7 +3126,7 @@ services:
 
           if kong_auth then
               kong.ctx.shared.upstream_token = auth_header
-              kong.service.request.set_header("Authorization", kong_auth)
+              ngx.req.set_header("Authorization", kong_auth)
           end
         body_filter: []
         certificate: []
