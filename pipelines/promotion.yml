@@ -86,6 +86,7 @@ stages:
             RENDER_OVERRIDE_ENV_FILE="$(Pipeline.Workspace)/rendered/prod-onprem-dr-redis.override.env"
             mkdir -p "$(dirname "$RENDER_OVERRIDE_ENV_FILE")"
             printf '%s\n' \
+              "REDIS_PARTIAL_ID=2d1c4ad9-7962-4a7e-a4af-d8cf2d976101" \
               "REDIS_PARTIAL_NAME=on-premise-dr-redis" \
               "REDIS_PARTIAL_TYPE=redis-ee" \
               "REDIS_PARTIAL_HOST=127.0.0.1" \
@@ -95,6 +96,7 @@ stages:
               "REDIS_PARTIAL_SENTINEL_PASSWORD='\"dr_onpremredis@2026\"'" \
               "REDIS_PARTIAL_SENTINEL_ROLE='\"master\"'" \
               "REDIS_PARTIAL_SENTINEL_USERNAME=null" \
+              "REDIS_CACHE_PARTIAL_ID=5f7c7cbf-cf27-4ae4-8984-f395f5a1d1b9" \
               "REDIS_CACHE_PARTIAL_NAME=on-premise-dr-redis-cache" \
               "REDIS_CACHE_HOST=127.0.0.1" \
               "REDIS_CACHE_PASSWORD=null" \
