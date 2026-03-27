@@ -16,13 +16,13 @@
           "audience_required": null
           "auth_methods":
             - "authorization_code"
+            - "bearer"
             - "client_credentials"
             - "password"
             - "introspection"
             - "userinfo"
             - "kong_oauth2"
             - "refresh_token"
-            - "session"
           "authenticated_groups_claim": null
           "authorization_cookie_domain": null
           "authorization_cookie_http_only": true
@@ -421,7 +421,7 @@
 
               \    kong.ctx.shared.upstream_token = auth_header
 
-              \    kong.service.request.set_header(\"Authorization\", kong_auth)
+              \    ngx.req.set_header(\"Authorization\", kong_auth)
 
               end"
           "body_filter": []
@@ -1377,13 +1377,13 @@
           "audience_required": null
           "auth_methods":
             - "authorization_code"
+            - "bearer"
             - "client_credentials"
             - "password"
             - "introspection"
             - "userinfo"
             - "kong_oauth2"
             - "refresh_token"
-            - "session"
           "authenticated_groups_claim": null
           "authorization_cookie_domain": null
           "authorization_cookie_http_only": true
@@ -1782,7 +1782,7 @@
 
               \    kong.ctx.shared.upstream_token = auth_header
 
-              \    kong.service.request.set_header(\"Authorization\", kong_auth)
+              \    ngx.req.set_header(\"Authorization\", kong_auth)
 
               end"
           "body_filter": []
@@ -1859,13 +1859,13 @@
           "audience_required": null
           "auth_methods":
             - "authorization_code"
+            - "bearer"
             - "client_credentials"
             - "password"
             - "introspection"
             - "userinfo"
             - "kong_oauth2"
             - "refresh_token"
-            - "session"
           "authenticated_groups_claim": null
           "authorization_cookie_domain": null
           "authorization_cookie_http_only": true
@@ -2264,7 +2264,7 @@
 
               \    kong.ctx.shared.upstream_token = auth_header
 
-              \    kong.service.request.set_header(\"Authorization\", kong_auth)
+              \    ngx.req.set_header(\"Authorization\", kong_auth)
 
               end"
           "body_filter": []
