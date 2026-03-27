@@ -15,6 +15,7 @@ parameters:
   default: Prod
   values:
   - Prod
+  - DR
 - name: controlPlane
   displayName: Control Plane
   type: string
@@ -46,18 +47,22 @@ stages:
         ENVIRONMENT="${{ parameters.environment }}"
         BRANCH="$(Build.SourceBranch)"
 
-        if [ "$ENVIRONMENT" = "Prod" ] && [ "$BRANCH" = "refs/heads/master" ]; then
-          if [ "$MODE" = "promotion" ]; then
-            echo "Valid run: promotion to Prod from master branch."
+        if [ "$BRANCH" = "refs/heads/master" ]; then
+          if [ "$MODE" = "promotion" ] && { [ "$ENVIRONMENT" = "Prod" ] || [ "$ENVIRONMENT" = "DR" ]; }; then
+            echo "Valid run: promotion to ${ENVIRONMENT} from master branch."
             exit 0
           fi
-          if [ "$MODE" = "rollback" ]; then
+          if [ "$MODE" = "rollback" ] && [ "$ENVIRONMENT" = "Prod" ]; then
             echo "Valid run: rollback on Prod from master branch."
             exit 0
           fi
+          if [ "$MODE" = "rollback" ] && [ "$ENVIRONMENT" = "DR" ]; then
+            echo "Invalid run: rollback is not allowed for DR. Use rollback only with Prod."
+            exit 1
+          fi
         fi
 
-        echo "Invalid run: prod pipeline supports only promotion or rollback on Prod from master branch."
+        echo "Invalid run: prod pipeline supports promotion on Prod or DR, and rollback only on Prod, from master branch."
         exit 1
       displayName: Enforce pipeline guardrails
 
