@@ -157,7 +157,6 @@ Add new variables to:
 - `kong/env/user/dev-onprem.env`
 - `kong/env/user/uat-onprem.env`
 - `kong/env/user/prod-onprem.env`
-- `kong/env/user/dr-onprem.env`
 
 Use env variables for values such as:
 

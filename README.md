@@ -25,7 +25,6 @@ Use:
   - `kong/env/user/dev-onprem.env`
   - `kong/env/user/uat-onprem.env`
   - `kong/env/user/prod-onprem.env`
-  - `kong/env/user/dr-onprem.env`
 
 Do not create or maintain `kong/<env>/onprem` state folders for active `OnPrem` work.
 
@@ -214,6 +213,8 @@ Promotion behavior:
 - promotion does not copy repo folders for `OnPrem`
 - it renders the same shared base using the target environment file
 - then it deploys that rendered target state to the selected target control plane
+- `DR` promotion does not use `kong/env/user/dr-onprem.env`
+- `DR` promotion renders from `kong/env/user/prod-onprem.env` and switches Redis-backed plugin references through an override
 
 ## Rollback Flow
 

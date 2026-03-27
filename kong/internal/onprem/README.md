@@ -7,7 +7,11 @@ It is rendered at pipeline runtime using:
 - `kong/env/system/dev-system.env` + `kong/env/user/dev-onprem.env`
 - `kong/env/system/uat-system.env` + `kong/env/user/uat-onprem.env`
 - `kong/env/system/prod-system.env` + `kong/env/user/prod-onprem.env`
-- `kong/env/system/dr-system.env` + `kong/env/user/dr-onprem.env`
+
+For `DR` promotion, the shared state is rendered from:
+
+- `kong/env/system/prod-system.env` + `kong/env/user/prod-onprem.env`
+- plus a promotion-time override that switches the active Redis-backed plugin references to DR
 
 ## Current Work Mechanism
 
