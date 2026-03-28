@@ -1,5 +1,6 @@
 "vaults":
   - "config":
       "config_store_id": "__REDIS_VAULT_CONFIG_STORE_ID__"
+    "__OPTIONAL_REDIS_VAULT_ID__"
     "name": "konnect"
     "prefix": "redis"
