@@ -228,7 +228,7 @@ partials:
     cloud_authentication: null
     database: 0
     host: 10.30.101.18
-    password: dev-redis-takaful@2025
+    password: '{vault://redis/redis_dev}'
     port: 6379
     server_name: null
     ssl: false
@@ -248,7 +248,7 @@ partials:
     host: 10.30.101.18
     keepalive_backlog: 0
     keepalive_pool_size: 256
-    password: dev-redis-takaful@2025
+    password: '{vault://redis/redis_dev}'
     port: 6379
     read_timeout: 2000
     send_timeout: 2000
@@ -791,6 +791,8 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: aml-restsvc-route
     path_handling: v0
     paths:
@@ -833,9 +835,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - AMLA
+    - route:aml-restsvc-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: aml-restsvcab-scan
     path_handling: v0
     paths:
@@ -878,6 +885,12 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - AMLA
+    - route:aml-restsvcab-scan
+  tags:
+  - AMLA
+  - service:aml-rest-services
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
@@ -903,6 +916,8 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: banca-auth-authenticate-route
     path_handling: v0
     paths:
@@ -1370,9 +1385,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Banca
+    - route:banca-auth-authenticate-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: banca-auth-login-route
     path_handling: v0
     paths:
@@ -1806,9 +1826,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Banca
+    - route:banca-auth-login-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: banca-auth-logout-route
     path_handling: v0
     paths:
@@ -2243,9 +2268,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Banca
+    - route:banca-auth-logout-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: banca-web-calculate-route
     path_handling: v0
     paths:
@@ -2713,9 +2743,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Banca
+    - route:banca-web-calculate-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: banca-web-quotation-route
     path_handling: v0
     paths:
@@ -3183,6 +3218,12 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Banca
+    - route:banca-web-quotation-route
+  tags:
+  - Banca
+  - service:bancaweb-api
   write_timeout: 60000
 - connect_timeout: 120000
   enabled: true
@@ -3577,6 +3618,8 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: claimhistory-storm-account-route
     path_handling: v0
     paths:
@@ -3619,9 +3662,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - ClaimHistory
+    - route:claimhistory-storm-account-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: claimhistory-storm-velogica-route
     path_handling: v0
     paths:
@@ -3664,6 +3712,12 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - ClaimHistory
+    - route:claimhistory-storm-velogica-route
+  tags:
+  - ClaimHistory
+  - service:claimhistory-storm-api
   tls_verify: false
   write_timeout: 120000
 - connect_timeout: 60000
@@ -3691,6 +3745,8 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: OIDC-Get-Token
     path_handling: v0
     paths:
@@ -3702,6 +3758,12 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - Token
+    - route:oidc-get-token
+  tags:
+  - Token
+  - service:get-token-service
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
@@ -4096,6 +4158,8 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
     name: kyc-wsmanager-input-add-route
     path_handling: v0
     paths:
@@ -4138,9 +4202,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - KYC
+    - route:kyc-wsmanager-input-add-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - GET
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
     paths:
@@ -4219,9 +4288,14 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - KYC
+    - route:kyc-wsmanager-kyc-risk-score-latest-route
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - GET
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
     paths:
@@ -4300,9 +4374,19 @@ services:
     request_buffering: true
     response_buffering: true
     strip_path: true
+    tags:
+    - KYC
+    - route:kyc-wsmanager-kyc-topic-get-route
+  tags:
+  - KYC
+  - service:kyc-wsmanager-api
   write_timeout: 60000
 vaults:
 - config:
     config_store_id: b63aa892-bc69-4c57-9452-e2d16750f244
   name: konnect
   prefix: identity
+- config:
+    config_store_id: b8b8f0e7-3fc3-40cd-be44-2a888b858687
+  name: konnect
+  prefix: redis
