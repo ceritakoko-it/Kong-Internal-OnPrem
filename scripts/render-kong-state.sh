@@ -109,7 +109,9 @@ for var_name in "${required_vars[@]}"; do
 done
 
 REDIS_VAULT_CONFIG_STORE_ID="${REDIS_VAULT_CONFIG_STORE_ID:-$VAULT_CONFIG_STORE_ID}"
+REDIS_VAULT_ID="${REDIS_VAULT_ID:-}"
 export REDIS_VAULT_CONFIG_STORE_ID
+export REDIS_VAULT_ID
 
 ACTIVE_REDIS_PARTIAL_ID="${ACTIVE_REDIS_PARTIAL_ID:-$REDIS_PARTIAL_ID}"
 ACTIVE_REDIS_PARTIAL_NAME="${ACTIVE_REDIS_PARTIAL_NAME:-$REDIS_PARTIAL_NAME}"
@@ -152,6 +154,9 @@ find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \)
       $secondary ne "" ? $1 . "- \"" . $secondary . ":443\"\n" : ""/gme;
     s/^([ \t]*)-[ \t]*"?__OPTIONAL_PUBLIC_HOST_SECONDARY__"?[ \t]*\r?\n/
       $secondary ne "" ? $1 . "- \"" . $secondary . "\"\n" : ""/gme;
+    my $redis_vault_id = $ENV{"REDIS_VAULT_ID"} // "";
+    s/^([ \t]*)"__OPTIONAL_REDIS_VAULT_ID__"[ \t]*\r?\n/
+      $redis_vault_id ne "" ? $1 . "\"id\": \"" . $redis_vault_id . "\",\n" : ""/gme;
 
     my %repl = (
       "__CONTROL_PLANE_NAME__" => $ENV{"CONTROL_PLANE_NAME"},
