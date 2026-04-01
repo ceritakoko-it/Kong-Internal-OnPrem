@@ -5,6 +5,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "OIDC-Get-Token"
     "path_handling": "v0"
     "paths":

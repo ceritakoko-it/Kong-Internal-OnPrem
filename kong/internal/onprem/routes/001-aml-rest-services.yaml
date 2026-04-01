@@ -5,6 +5,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "aml-restsvc-route"
     "path_handling": "v0"
     "paths":
@@ -58,6 +59,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "aml-restsvcab-scan"
     "path_handling": "v0"
     "paths":

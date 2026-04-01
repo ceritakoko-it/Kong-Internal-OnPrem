@@ -18,7 +18,7 @@
           - "grpcs"
           - "http"
           - "https"
-    "port": 80
+    "port": __BANCAWEB_SERVICE_PORT__
     "protocol": "http"
     "read_timeout": 60000
     "retries": 5
