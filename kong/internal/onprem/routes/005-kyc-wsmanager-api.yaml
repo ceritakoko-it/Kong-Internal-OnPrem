@@ -5,6 +5,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "kyc-wsmanager-input-add-route"
     "path_handling": "v0"
     "paths":
@@ -58,6 +59,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "GET"
+      - "OPTIONS"
     "name": "kyc-wsmanager-kyc-risk-score-latest-route"
     "path_handling": "v0"
     "paths":
@@ -147,6 +149,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "GET"
+      - "OPTIONS"
     "name": "kyc-wsmanager-kyc-topic-get-route"
     "path_handling": "v0"
     "paths":

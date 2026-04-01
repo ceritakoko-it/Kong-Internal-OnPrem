@@ -5,6 +5,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "banca-auth-authenticate-route"
     "path_handling": "v0"
     "paths":
@@ -492,6 +493,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "banca-auth-login-route"
     "path_handling": "v0"
     "paths":
@@ -936,6 +938,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "banca-auth-logout-route"
     "path_handling": "v0"
     "paths":
@@ -1381,6 +1384,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "banca-web-calculate-route"
     "path_handling": "v0"
     "paths":
@@ -1868,6 +1872,7 @@
     "https_redirect_status_code": 426
     "methods":
       - "POST"
+      - "OPTIONS"
     "name": "banca-web-quotation-route"
     "path_handling": "v0"
     "paths":

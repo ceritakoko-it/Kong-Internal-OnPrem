@@ -1,7 +1,7 @@
 "plugins":
   - "config":
       "allow_origin_absent": true
-      "credentials": false
+      "credentials": true
       "exposed_headers": null
       "headers": null
       "max_age": null
@@ -15,7 +15,8 @@
         - "OPTIONS"
         - "TRACE"
         - "CONNECT"
-      "origins": null
+      "origins":
+        - "__CORS_ALLOWED_ORIGIN__"
       "preflight_continue": false
       "private_network": false
     "enabled": true

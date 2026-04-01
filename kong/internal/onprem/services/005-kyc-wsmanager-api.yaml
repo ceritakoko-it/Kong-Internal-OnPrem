@@ -387,7 +387,7 @@
           - "grpcs"
           - "http"
           - "https"
-    "port": 8999
+    "port": __KYC_WSMANAGER_SERVICE_PORT__
     "protocol": "https"
     "read_timeout": 60000
     "retries": 5

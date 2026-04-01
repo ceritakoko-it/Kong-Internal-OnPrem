@@ -29,6 +29,19 @@ BANCA_TOKEN_CACHE_FILE="${BANCA_TOKEN_CACHE_FILE:-${HOME}/.kong-internal-onprem-
 : "${KYC_INPUT_ADD_BODY:?Set KYC_INPUT_ADD_BODY in the env-specific smoke test script}"
 : "${KYC_RISK_SCORE_QUERY:?Set KYC_RISK_SCORE_QUERY in the env-specific smoke test script}"
 : "${KYC_TOPIC_QUERY:?Set KYC_TOPIC_QUERY in the env-specific smoke test script}"
+
+if [ -z "${BANCA_LOGIN_BODY:-}" ]; then
+  if [ -n "${BANCA_LOGIN_USERNAME:-}" ] && [ -n "${BANCA_LOGIN_PASSWORD:-}" ]; then
+    BANCA_LOGIN_BODY="$(
+      "${PYTHON_BIN}" -c 'import json, os; print(json.dumps({"UserName": os.environ["BANCA_LOGIN_USERNAME"], "Password": os.environ["BANCA_LOGIN_PASSWORD"]}, separators=(",", ":")))' \
+    )"
+    export BANCA_LOGIN_BODY
+  else
+    echo "Set BANCA_LOGIN_BODY or both BANCA_LOGIN_USERNAME and BANCA_LOGIN_PASSWORD in the env-specific local secret file"
+    exit 1
+  fi
+fi
+
 : "${BANCA_LOGIN_BODY:?Set BANCA_LOGIN_BODY in the env-specific smoke test script}"
 : "${BANCA_AUTHENTICATE_BODY:?Set BANCA_AUTHENTICATE_BODY in the env-specific smoke test script}"
 : "${BANCA_LOGOUT_BODY:?Set BANCA_LOGOUT_BODY in the env-specific smoke test script}"
