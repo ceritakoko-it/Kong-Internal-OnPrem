@@ -1,0 +1,474 @@
+openapi: 3.0.0
+info:
+  title: Kong Konnect Internal APIs (Dev On-Prem)
+  version: 1.7.8
+  description: "Takaful internal services with granular security. Reuse the same `Authorization: Bearer <access_token>` value across AMLA, Banca, and Claim History after calling `/api/token`. Only service-specific headers such as `apikey`, `X-Auth-Token`, or `X-API-KEY` need to change per flow."
+servers:
+  - url: https://kong-api-dev.takaful-malaysia.com.my:443
+    description: Internal Takaful API Dev Server
+
+tags:
+  - name: Authentication
+    description: OAuth token endpoint
+  - name: AMLA
+    description: AMLA-related endpoints (KYC & AML scans)
+  - name: Banca Portal
+    description: Banca portal endpoints including eQuotation and calculation services
+  - name: Claim History
+    description: Storm / claim history related endpoints
+
+paths:
+  # --- AUTHENTICATION SECTION (1 API) ---
+  /api/token:
+    post:
+      tags: [Authentication]
+      summary: Get Access Token
+      description: "Proxies to the identity provider token endpoint (`/auth/oauth/token`). Use this first to obtain an access token. Reuse that same `Authorization: Bearer <access_token>` value across the protected APIs below."
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            example:
+              grant_type: client_credentials
+              client_id: your-client-id
+              client_secret: your-client-secret
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                  example: client_credentials
+                client_id:
+                  type: string
+                client_secret:
+                  type: string
+              required: [grant_type, client_id, client_secret]
+      responses:
+        "200":
+          description: Token issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                  token_type:
+                    type: string
+                    example: bearer
+                  expires_in:
+                    type: integer
+                    example: 3600
+                required: [access_token, token_type]
+
+  # --- AMLA SECTION (5 APIs) ---
+  /api/wsmanager/kycinput/add:
+    post:
+      tags: [AMLA]
+      summary: Add KYC data
+      description: "Requires the `Authorization` header with `Bearer <token>` and the `apikey` header in the request form below."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/ApiKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              messageId: "20251295511212testsq"
+              partitionId: "0"
+              message: "XML string payload"
+            schema:
+              type: object
+              properties:
+                messageId: { type: string, example: "20251295511212testsq" }
+                partitionId: { type: string, example: "0" }
+                message: { type: string, description: "XML string payload" }
+      responses:
+        "200":
+          description: Insert/Update kyc requested.
+          content:
+            application/json:
+              example:
+                message: "Insert/Update kyc requested."
+                apiKey: "a3a4f228-7132-4e32-bd8b-13b2da223e6b"
+                object: { nbMessage: 1 }
+
+  /api/wsmanager/kycTopic/get:
+    get:
+      tags: [AMLA]
+      summary: Get KYC Topic data
+      description: "Requires the `Authorization` header with `Bearer <token>` and the `apikey` header in the request form below."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/ApiKeyHeader'
+        - name: topic
+          in: query
+          required: true
+          schema: { type: string, example: "kyc.KycOutputAPI" }
+        - name: clientId
+          in: query
+          required: true
+          schema: { type: string, example: "ClientId1" }
+        - name: groupId
+          in: query
+          required: true
+          schema: { type: string, example: "groupId1" }
+        - name: count
+          in: query
+          schema: { type: string, example: "1" }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              example: [{ messageId: "INPUT-20260206 09:46:02.860", topic: "kyc.KycOutputAPI" }]
+
+  /api/wsmanager/kyc/riskscore/getLatest:
+    get:
+      tags: [AMLA]
+      summary: Get KYC Risk Score
+      description: "Requires the `Authorization` header with `Bearer <token>` and the `apikey` header in the request form below."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/ApiKeyHeader'
+        - name: clientKey
+          in: query
+          required: true
+          schema: { type: string, example: "XXXX01" }
+        - name: zoneId
+          in: query
+          required: true
+          schema: { type: string, example: "1" }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/xml:
+              example: '<?xml version="1.0"?><kyc_response><KYC client_key="XXXX01"><kycStatus>Approved</kycStatus></KYC></kyc_response>'
+
+  /aml/restsvc/scan:
+    post:
+      tags: [AMLA]
+      summary: FILTERING AML Scan
+      description: "Requires the `Authorization` header with `Bearer <token>`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              Client_Name: "TEST NAME"
+              Client_DOB: ""
+              Client_ID_Type: "NRIC"
+              Client_ID_No: "XXXXXX-06-0332"
+              Client_Gender: ""
+              Client_Nationality: ""
+              Source_System: "DTM"
+              Transaction_Type: "NB"
+              Department_Code: "FUCS"
+              Transaction_Ref_No: "API test UAT"
+              Transaction_Ref_No_2: ""
+              Transaction_Date: "2026-02-02"
+              Name01: ""
+              Name02: ""
+              Name03: ""
+              Name04: ""
+              Name05: ""
+              Name06: ""
+              Name07: ""
+              Name08: ""
+              Name09: ""
+              Name10: ""
+              Name11: ""
+              Name12: ""
+              Name13: ""
+              Name14: ""
+              Name15: ""
+            schema:
+              $ref: '#/components/schemas/AMLFilteringBody'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              example: { AML_Transaction_Ref_No: 2204612, violation_Count: 0 }
+
+  /aml/restsvc-ab/scan:
+    post:
+      tags: [AMLA]
+      summary: FILTERING Scan General Product
+      description: "Requires the `Authorization` header with `Bearer <token>`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              Client_Name: "TEST NAME"
+              Client_DOB: ""
+              Client_ID_Type: "NRIC"
+              Client_ID_No: "XXXXXX-06-0332"
+              Client_Gender: ""
+              Client_Nationality: ""
+              Source_System: "DTM"
+              Transaction_Type: "NB"
+              Department_Code: "FUCS"
+              Transaction_Ref_No: "API test UAT"
+              Transaction_Ref_No_2: ""
+              Transaction_Date: "2026-02-02"
+              Name01: ""
+              Name02: ""
+              Name03: ""
+              Name04: ""
+              Name05: ""
+              Name06: ""
+              Name07: ""
+              Name08: ""
+              Name09: ""
+              Name10: ""
+              Name11: ""
+              Name12: ""
+              Name13: ""
+              Name14: ""
+              Name15: ""
+            schema:
+              $ref: '#/components/schemas/AMLFilteringBody'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              example: { AML_Transaction_Ref_No: 2204616, violation_Count: 0 }
+
+  # --- BANCA PORTAL SECTION (4 APIs) ---
+  /auth/banca/login:
+    post:
+      tags: [Banca Portal]
+      summary: Banca Login
+      description: "Requires the shared `Authorization` header with `Bearer <access_token>`. This returns the Banca login token and session details used by later Banca calls."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              UserName: "smoke.test"
+              Password: "SmokeTest123!"
+            schema:
+              type: object
+              properties:
+                UserName: { type: string }
+                Password: { type: string }
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              example: { token: "eyJhbGci...", fullName: "Naresh. kumar", apiCode: 200 }
+
+  /auth/banca/authenticate:
+    post:
+      tags: [Banca Portal]
+      summary: Banca Authentication
+      description: "Requires the same shared `Authorization` header with `Bearer <access_token>`. Use the token returned by Banca Login for the next Banca API calls."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+              example: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><authentication><body><apiKey>bimbfos</apiKey><apiSecret>D03E9DAB-164A-47D9-9CC7-000008FD1FCB</apiSecret></body></authentication>'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/xml:
+              example: '<authentication><body><apiToken>eyJhbGci...</apiToken><apiCode>200</apiCode></body></authentication>'
+
+  /api/banca/quotation:
+    post:
+      tags: [Banca Portal]
+      summary: Data Transfer eQuotation
+      description: "Reuse the same shared `Authorization` header with `Bearer <access_token>`. Only the `X-Auth-Token` header changes here and should be populated with the API token returned by Banca Authentication."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/XAuthTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+              example: '<?xml version="1.0"?><equotation><body><pfeid>00003518</pfeid><name>KumarN</name><nationality>Malaysian</nationality><nationalityOthers/><mykad>8046038</mykad><otherid/><dob>19900113</dob><gender>Female</gender><paymentbasis>G</paymentbasis><plantype>MLTT</plantype><schemename>01</schemename><fr1>0</fr1><fr2>INCLUSIVE</fr2><fr3>20</fr3><amount>10000</amount><interim>0</interim><religion>Non Muslim</religion><race>Malay/Bumiputera</race><race_others/><email>naresh.vuyalla@takaful-malaysia.com.my</email><mobile>0122457745</mobile><address>KM 8, PENGKALAN JAJAR, KAMPUNG ALAI</address><city/><state>Melaka</state><postcode>75460</postcode><occupation>1120</occupation><occupation_others/><employer_name>INSIGHT ALLIANCE</employer_name><employer_address>10-2 MENARA LEXIS, JALAN RIA, 54200, KL</employer_address><employer_country>MY</employer_country><exactduties/><nature/><bankref>APP56289</bankref><typeofapplicant>Single Applicant</typeofapplicant><jointapplicants/><bankstaff_email>nanijasmine@gmail.com</bankstaff_email></body></equotation>'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/xml:
+              example: '<equotation><body><QuotationNo>Q2026020900004</QuotationNo><apiCode>200</apiCode></body></equotation>'
+
+  /api/banca/calculate:
+    post:
+      tags: [Banca Portal]
+      summary: Data Transfer Calculate
+      description: "Reuse the same shared `Authorization` header with `Bearer <access_token>`. Only the `X-Auth-Token` header changes here and should be populated with the API token returned by Banca Authentication."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/XAuthTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+              example: '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><calculate><body><nationality>Malaysian</nationality><dob>19730305</dob><gender>Male</gender><paymentbasis>N</paymentbasis><plantype>BLTT</plantype><schemename>01</schemename><fr1>0.00</fr1><fr2>INCLUSIVE</fr2><fr3>1</fr3><amount>1500000</amount><interim>0</interim></body></calculate>'
+      responses:
+        "200":
+          description: Success
+          content:
+            application/xml:
+              example: '<calculate><body><TotalContribution>13950.00</TotalContribution><apiCode>200</apiCode></body></calculate>'
+
+  /auth/banca/logout:
+    post:
+      tags: [Banca Portal]
+      summary: Banca Logout
+      description: "Requires the same shared `Authorization` header with `Bearer <access_token>`. Reuse the login session ID returned by Banca Login in the request body."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              SessionID: "__BANCA_SESSION_ID__"
+            schema:
+              type: object
+              properties:
+                SessionID: { type: string, example: "__BANCA_SESSION_ID__" }
+      responses:
+        "200":
+          description: Success
+
+  # --- CLAIM HISTORY SECTION (2 APIs) ---
+  /api/storm/account:
+    post:
+      tags: [Claim History]
+      summary: Storm API Account
+      description: "Requires the `Authorization` header with `Bearer <token>` and the `X-API-KEY` header in the request form below."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/XApiKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              userNric: "901010031111"
+              userEmail: "user@example.com"
+              userName: "m22"
+              userMobile: "0111111"
+              userDob: "03/04/2025"
+              userNricType: "NEW"
+            schema:
+              type: object
+              properties:
+                userNric: { type: string, example: "901010031111" }
+                userEmail: { type: string, example: "user@example.com" }
+                userName: { type: string, example: "m22" }
+                userMobile: { type: string, example: "0111111" }
+                userDob: { type: string, example: "03/04/2025" }
+                userNricType: { type: string, example: "NEW" }
+      responses:
+        "200":
+          description: Success
+
+  /api/storm/velogica:
+    post:
+      tags: [Claim History]
+      summary: Storm API Velogica
+      description: "Requires the `Authorization` header with `Bearer <token>` and the `X-API-KEY` header in the request form below."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/XApiKeyHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              nric: "971126107404"
+              productCode: "MMD1"
+            schema:
+              type: object
+              properties:
+                nric: { type: string, example: "971126107404" }
+                productCode: { type: string, example: "MMD1" }
+      responses:
+        "200":
+          description: Success
+
+components:
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      description: "Shared bearer access token from `/api/token`. Enter it once as `Bearer <access_token>` and reuse the same value across AMLA, Banca, and Claim History calls."
+      schema: { type: string, example: "Bearer eyJhbGciOi..." }
+    ApiKeyHeader:
+      name: apikey
+      in: header
+      required: true
+      description: AMLA API key. Enter this in the request form.
+      schema: { type: string, example: "a3a4f228-7132-4e32-bd8b-13b2da223e6b" }
+    XApiKeyHeader:
+      name: X-API-KEY
+      in: header
+      required: true
+      description: Claim History API key. Enter this in the request form.
+      schema: { type: string, example: "2a77d64b-fae2-41a9-ae5f-600a8ceb4537" }
+    XAuthTokenHeader:
+      name: X-Auth-Token
+      in: header
+      required: true
+      description: Banca-specific API token returned by Banca Authentication. Keep the same `Authorization` header value and change only this field for quotation and calculate.
+      schema: { type: string, example: "Bearer <token>" }
+
+  schemas:
+    AMLFilteringBody:
+      type: object
+      properties:
+        Client_Name: { type: string, example: "TEST NAME" }
+        Client_DOB: { type: string, example: "" }
+        Client_ID_Type: { type: string, example: "NRIC" }
+        Client_ID_No: { type: string, example: "XXXXXX-06-0332" }
+        Client_Gender: { type: string, example: "" }
+        Client_Nationality: { type: string, example: "" }
+        Source_System: { type: string, example: "DTM" }
+        Transaction_Type: { type: string, example: "NB" }
+        Department_Code: { type: string, example: "FUCS" }
+        Transaction_Ref_No: { type: string, example: "API test UAT" }
+        Transaction_Ref_No_2: { type: string, example: "" }
+        Transaction_Date: { type: string, example: "2026-02-02" }
+        Name01: { type: string, example: "" }
+        Name02: { type: string, example: "" }
+        Name03: { type: string, example: "" }
+        Name04: { type: string, example: "" }
+        Name05: { type: string, example: "" }
+        Name06: { type: string, example: "" }
+        Name07: { type: string, example: "" }
+        Name08: { type: string, example: "" }
+        Name09: { type: string, example: "" }
+        Name10: { type: string, example: "" }
+        Name11: { type: string, example: "" }
+        Name12: { type: string, example: "" }
+        Name13: { type: string, example: "" }
+        Name14: { type: string, example: "" }
+        Name15: { type: string, example: "" }
