@@ -1,5 +1,6 @@
 "vaults":
   - "config":
       "config_store_id": "__VAULT_CONFIG_STORE_ID__"
+    "__OPTIONAL_IDENTITY_VAULT_ID__"
     "name": "konnect"
     "prefix": "identity"
