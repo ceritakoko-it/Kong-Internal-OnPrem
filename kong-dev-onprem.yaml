@@ -267,7 +267,7 @@ partials:
 plugins:
 - config:
     allow_origin_absent: true
-    credentials: false
+    credentials: true
     exposed_headers: null
     headers: null
     max_age: null
@@ -281,7 +281,8 @@ plugins:
     - OPTIONS
     - TRACE
     - CONNECT
-    origins: null
+    origins:
+    - https://dev-nonprod.takaful-malaysia.com.my/
     preflight_continue: false
     private_network: false
   enabled: true
@@ -793,6 +794,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: aml-restsvc-route
     path_handling: v0
     paths:
@@ -843,6 +845,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: aml-restsvcab-scan
     path_handling: v0
     paths:
@@ -918,6 +921,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: banca-auth-authenticate-route
     path_handling: v0
     paths:
@@ -1393,6 +1397,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: banca-auth-login-route
     path_handling: v0
     paths:
@@ -1834,6 +1839,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: banca-auth-logout-route
     path_handling: v0
     paths:
@@ -2276,6 +2282,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: banca-web-calculate-route
     path_handling: v0
     paths:
@@ -2751,6 +2758,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: banca-web-quotation-route
     path_handling: v0
     paths:
@@ -3620,6 +3628,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: claimhistory-storm-account-route
     path_handling: v0
     paths:
@@ -3670,6 +3679,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: claimhistory-storm-velogica-route
     path_handling: v0
     paths:
@@ -3747,6 +3757,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - POST
+    - OPTIONS
     name: OIDC-Get-Token
     path_handling: v0
     paths:
@@ -4158,8 +4169,6 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
-    methods:
-    - POST
     name: kyc-wsmanager-input-add-route
     path_handling: v0
     paths:
@@ -4210,6 +4219,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - GET
+    - OPTIONS
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
     paths:
@@ -4296,6 +4306,7 @@ services:
     https_redirect_status_code: 426
     methods:
     - GET
+    - OPTIONS
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
     paths:
