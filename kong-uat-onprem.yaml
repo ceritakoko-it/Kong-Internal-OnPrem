@@ -3235,7 +3235,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 120000
   enabled: true
-  host: 10.30.101.177
+  host: bancaapiuat.mytakafulpartners.com.my
   name: ClaimHistory-Storm-API
   plugins:
   - config:
@@ -3618,7 +3618,7 @@ services:
     - grpcs
     - http
     - https
-  port: 7771
+  port: 443
   protocol: https
   read_timeout: 120000
   retries: 5
@@ -3732,7 +3732,7 @@ services:
   write_timeout: 120000
 - connect_timeout: 60000
   enabled: true
-  host: 10.30.101.177
+  host: 10.30.101.166
   name: KYC-WSManager-API
   plugins:
   - config:
@@ -4115,7 +4115,7 @@ services:
     - grpcs
     - http
     - https
-  port: 7772
+  port: 8999
   protocol: https
   read_timeout: 60000
   retries: 5

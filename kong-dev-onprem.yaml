@@ -282,7 +282,7 @@ plugins:
     - TRACE
     - CONNECT
     origins:
-    - https://dev-nonprod.takaful-malaysia.com.my/
+    - https://dev-nonprod.takaful-malaysia.com.my
     preflight_continue: false
     private_network: false
   enabled: true
@@ -897,7 +897,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
-  host: wintelappuat.takaful-malaysia.com.my
+  host: 10.30.101.177
   name: BancaWeb-API
   plugins:
   - config:
@@ -911,7 +911,7 @@ services:
     - grpcs
     - http
     - https
-  port: 80
+  port: 7774
   protocol: http
   read_timeout: 60000
   retries: 5
@@ -3756,8 +3756,8 @@ services:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
     methods:
-    - POST
     - OPTIONS
+    - POST
     name: OIDC-Get-Token
     path_handling: v0
     paths:
@@ -3799,15 +3799,8 @@ services:
       - aud
       audience_required: null
       auth_methods:
-      - password
-      - client_credentials
-      - authorization_code
       - bearer
       - introspection
-      - userinfo
-      - kong_oauth2
-      - refresh_token
-      - session
       authenticated_groups_claim: null
       authorization_cookie_domain: null
       authorization_cookie_http_only: true
@@ -4217,9 +4210,6 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
-    methods:
-    - GET
-    - OPTIONS
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
     paths:
@@ -4304,9 +4294,6 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
-    methods:
-    - GET
-    - OPTIONS
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
     paths:

@@ -25,15 +25,8 @@
             - "aud"
           "audience_required": null
           "auth_methods":
-            - "password"
-            - "client_credentials"
-            - "authorization_code"
             - "bearer"
             - "introspection"
-            - "userinfo"
-            - "kong_oauth2"
-            - "refresh_token"
-            - "session"
           "authenticated_groups_claim": null
           "authorization_cookie_domain": null
           "authorization_cookie_http_only": true
