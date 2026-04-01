@@ -73,7 +73,6 @@ required_vars=(
   REDIS_CACHE_SENTINEL_ROLE
   REDIS_CACHE_SENTINEL_USERNAME
   VAULT_CONFIG_STORE_ID
-  REDIS_VAULT_CONFIG_STORE_ID
   STANDARD_AMLA_API_RATE_LIMIT_MINUTE
   STANDARD_AMLA_API_RATE_LIMIT_HOUR
   STANDARD_BANCA_PORTAL_RATE_LIMIT_MINUTE
@@ -114,12 +113,10 @@ for var_name in "${required_vars[@]}"; do
   test -n "${!var_name:-}" || { echo "Missing required variable in $ENV_FILE: $var_name"; exit 1; }
 done
 
-if [ "${REDIS_VAULT_CONFIG_STORE_ID}" = "${VAULT_CONFIG_STORE_ID}" ]; then
-  echo "REDIS_VAULT_CONFIG_STORE_ID must be different from VAULT_CONFIG_STORE_ID in $ENV_FILE"
-  exit 1
-fi
-
+REDIS_VAULT_CONFIG_STORE_ID="${REDIS_VAULT_CONFIG_STORE_ID:-$VAULT_CONFIG_STORE_ID}"
+IDENTITY_VAULT_ID="${IDENTITY_VAULT_ID:-}"
 REDIS_VAULT_ID="${REDIS_VAULT_ID:-}"
+export IDENTITY_VAULT_ID
 export REDIS_VAULT_CONFIG_STORE_ID
 export REDIS_VAULT_ID
 
@@ -164,6 +161,9 @@ find "$OUTPUT_DIR" -type f \( -name "*.yaml" -o -name "*.yml" -o -name "*.md" \)
       $secondary ne "" ? $1 . "- \"" . $secondary . ":443\"\n" : ""/gme;
     s/^([ \t]*)-[ \t]*"?__OPTIONAL_PUBLIC_HOST_SECONDARY__"?[ \t]*\r?\n/
       $secondary ne "" ? $1 . "- \"" . $secondary . "\"\n" : ""/gme;
+    my $identity_vault_id = $ENV{"IDENTITY_VAULT_ID"} // "";
+    s/^([ \t]*)"__OPTIONAL_IDENTITY_VAULT_ID__"[ \t]*\r?\n/
+      $identity_vault_id ne "" ? $1 . "\"id\": \"" . $identity_vault_id . "\"\n" : ""/gme;
     my $redis_vault_id = $ENV{"REDIS_VAULT_ID"} // "";
     s/^([ \t]*)"__OPTIONAL_REDIS_VAULT_ID__"[ \t]*\r?\n/
       $redis_vault_id ne "" ? $1 . "\"id\": \"" . $redis_vault_id . "\"\n" : ""/gme;
