@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
   title: Kong Konnect Internal APIs (Dev On-Prem)
-  version: 1.7.8
+  version: 1.7.9
   description: "Takaful internal services with granular security. Reuse the same `Authorization: Bearer <access_token>` value across AMLA, Banca, and Claim History after calling `/api/token`. Only service-specific headers such as `apikey`, `X-Auth-Token`, or `X-API-KEY` need to change per flow."
 servers:
   - url: https://kong-api-dev.takaful-malaysia.com.my:443
@@ -145,8 +145,14 @@ paths:
         "200":
           description: Success
           content:
-            application/xml:
-              example: '<?xml version="1.0"?><kyc_response><KYC client_key="XXXX01"><kycStatus>Approved</kycStatus></KYC></kyc_response>'
+            application/json:
+              example:
+                code: "200"
+                message: "Success"
+                data:
+                  clientKey: "XXXX01"
+                  zoneId: "1"
+                  kycStatus: "Approved"
 
   /aml/restsvc/scan:
     post:
