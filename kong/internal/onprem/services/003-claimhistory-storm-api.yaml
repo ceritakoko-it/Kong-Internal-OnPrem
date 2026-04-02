@@ -34,7 +34,7 @@
           "ws_handshake": []
           "ws_upstream_frame": []
         "enabled": true
-        "instance_name": "PII-Redaction-Logger"
+        "instance_name": "ClaimHistory-Storm-API-PII-Redaction-Logger"
         "name": "pre-function"
         "protocols":
           - "grpc"
