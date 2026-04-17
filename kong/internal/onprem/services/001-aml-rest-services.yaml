@@ -404,7 +404,7 @@
           - "http"
           - "https"
     "port": __AML_REST_SERVICE_PORT__
-    "protocol": "http"
+    "protocol": "__AML_REST_SERVICE_PROTOCOL__"
     "read_timeout": 60000
     "retries": 5
     "write_timeout": 60000
