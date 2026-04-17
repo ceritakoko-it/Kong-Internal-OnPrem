@@ -407,5 +407,4 @@
     "protocol": "__CLAIMHISTORY_STORM_SERVICE_PROTOCOL__"
     "read_timeout": 120000
     "retries": 5
-    "tls_verify": false
     "write_timeout": 120000
