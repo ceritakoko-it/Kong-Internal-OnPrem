@@ -467,7 +467,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "/BancaWebApi/UAT/datatransfer/authentication"
+            "uri": "__BANCA_AUTHENTICATE_UPSTREAM_URI__"
         "enabled": true
         "name": "request-transformer"
         "protocols":
@@ -912,7 +912,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "/BancaWebApi/UAT/account/Login"
+            "uri": "__BANCA_LOGIN_UPSTREAM_URI__"
         "enabled": true
         "name": "request-transformer"
         "protocols":
@@ -1358,7 +1358,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "/BancaWebApi/UAT/account/Logout"
+            "uri": "__BANCA_LOGOUT_UPSTREAM_URI__"
         "enabled": true
         "name": "request-transformer"
         "protocols":
@@ -1846,7 +1846,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "/BancaWebApi/UAT/DataTransfer/calculate"
+            "uri": "__BANCA_CALCULATE_UPSTREAM_URI__"
         "enabled": true
         "name": "request-transformer"
         "protocols":
@@ -2334,7 +2334,7 @@
             "body": []
             "headers": []
             "querystring": []
-            "uri": "/BancaWebApi/UAT/DataTransfer/eQuotation"
+            "uri": "__BANCA_EQUOTATION_UPSTREAM_URI__"
         "enabled": true
         "name": "request-transformer"
         "protocols":

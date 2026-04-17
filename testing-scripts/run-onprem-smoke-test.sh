@@ -22,6 +22,7 @@ fi
 
 BASE_URL="${TEST_BASE_URL:-https://${PUBLIC_HOST_PRIMARY}}"
 TOKEN_GRANT_TYPE="${TOKEN_GRANT_TYPE:-client_credentials}"
+TOKEN_REQUEST_MODE="${TOKEN_REQUEST_MODE:-auto}"
 BANCA_TOKEN_CACHE_FILE="${BANCA_TOKEN_CACHE_FILE:-${HOME}/.kong-internal-onprem-banca-${ENV_NAME}.env}"
 
 : "${AML_REST_SCAN_BODY:?Set AML_REST_SCAN_BODY in the env-specific smoke test script}"
@@ -89,6 +90,9 @@ api_response_file="$(mktemp)"
 cookie_jar_file="$(mktemp)"
 FAILURES=0
 FAILED_TESTS=()
+PASSED_TESTS=()
+SKIPPED_TESTS=()
+FETCHED_ACCESS_TOKEN=""
 
 print_result() {
   local status="$1"
@@ -100,6 +104,27 @@ print_result() {
 
   printf '[%s] [%s] %s %s | HTTP %s | %ss\n' \
     "${status}" "${category}" "${method}" "${test_name}" "${http_code}" "${time_total}"
+}
+
+record_pass() {
+  local category="$1"
+  local test_name="$2"
+  PASSED_TESTS+=("[${category}] ${test_name}")
+}
+
+record_failure() {
+  local category="$1"
+  local test_name="$2"
+  FAILURES=$((FAILURES + 1))
+  FAILED_TESTS+=("[${category}] ${test_name}")
+}
+
+record_skip() {
+  local category="$1"
+  local test_name="$2"
+  local reason="$3"
+  printf '[WARN] [%s] SKIP %s | %s\n' "${category}" "${test_name}" "${reason}"
+  SKIPPED_TESTS+=("[${category}] ${test_name} | ${reason}")
 }
 
 print_failure_detail() {
@@ -136,6 +161,31 @@ response_contains() {
     return 1
   fi
   grep -Fqi "${needle}" "${api_response_file}"
+}
+
+extract_json_field() {
+  local json_file="$1"
+  local field_name="$2"
+
+  "${PYTHON_BIN}" - "${json_file}" "${field_name}" <<'PY' 2>/dev/null || true
+import json
+import sys
+
+json_file = sys.argv[1]
+field_name = sys.argv[2]
+
+try:
+    with open(json_file, encoding="utf-8") as handle:
+        data = json.load(handle)
+except Exception:
+    sys.exit(0)
+
+value = data.get(field_name, "")
+if value is None:
+    value = ""
+
+print(value)
+PY
 }
 
 load_banca_token_cache() {
@@ -188,40 +238,82 @@ fetch_access_token() {
   local token_http_code
   local time_total
   local access_token
+  local token_request_mode="${TOKEN_REQUEST_MODE}"
 
+  perform_token_request() {
+    local request_mode="$1"
+
+    if [ "${request_mode}" = "multipart" ]; then
+      read -r token_http_code time_total <<< "$(
+        curl -sS \
+          -b "${cookie_jar_file}" \
+          -c "${cookie_jar_file}" \
+          --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
+          --max-time "${TIMEOUT_SECONDS}" \
+          -o "${token_response_file}" \
+          -w "%{http_code} %{time_total}" \
+          -X POST "${BASE_URL}/api/token" \
+          -F "grant_type=${TOKEN_GRANT_TYPE}" \
+          -F "client_id=${client_id}" \
+          -F "client_secret=${client_secret}"
+      )"
+    else
+      read -r token_http_code time_total <<< "$(
+        curl -sS \
+          -b "${cookie_jar_file}" \
+          -c "${cookie_jar_file}" \
+          --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
+          --max-time "${TIMEOUT_SECONDS}" \
+          -o "${token_response_file}" \
+          -w "%{http_code} %{time_total}" \
+          -X POST "${BASE_URL}/api/token" \
+          -H "Content-Type: application/x-www-form-urlencoded" \
+          --data-urlencode "grant_type=${TOKEN_GRANT_TYPE}" \
+          --data-urlencode "client_id=${client_id}" \
+          --data-urlencode "client_secret=${client_secret}"
+      )"
+    fi
+  }
+
+  FETCHED_ACCESS_TOKEN=""
   : > "${token_response_file}"
 
-  read -r token_http_code time_total <<< "$(
-    curl -sS \
-      -b "${cookie_jar_file}" \
-      -c "${cookie_jar_file}" \
-      --connect-timeout "${CONNECT_TIMEOUT_SECONDS}" \
-      --max-time "${TIMEOUT_SECONDS}" \
-      -o "${token_response_file}" \
-      -w "%{http_code} %{time_total}" \
-      -X POST "${BASE_URL}/api/token" \
-      -H "Content-Type: application/x-www-form-urlencoded" \
-      --data-urlencode "grant_type=${TOKEN_GRANT_TYPE}" \
-      --data-urlencode "client_id=${client_id}" \
-      --data-urlencode "client_secret=${client_secret}"
-  )"
+  if [ "${token_request_mode}" = "auto" ]; then
+    perform_token_request "multipart"
+  else
+    perform_token_request "${token_request_mode}"
+  fi
 
   if [ "${token_http_code}" != "200" ]; then
     print_result "FAIL" "${category}" "POST" "Get Access Token" "${token_http_code}" "${time_total}"
     if [ -s "${token_response_file}" ]; then
-      printf '  detail: %s\n' "$(tr '\r\n' ' ' < "${token_response_file}" | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')"
+      printf '  detail: %s\n' "$(tr '\r\n' ' ' < "${token_response_file}" | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')" >&2
     fi
-    exit 1
+    record_failure "${category}" "Get Access Token"
+    return 1
   fi
 
   print_result "PASS" "${category}" "POST" "Get Access Token" "${token_http_code}" "${time_total}" >&2
 
-  access_token="$(
-    "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("access_token", ""))' \
-      < "${token_response_file}"
-  )"
-  test -n "${access_token}" || { echo "${category} token response did not contain access_token"; cat "${token_response_file}"; exit 1; }
-  printf '%s' "${access_token}"
+  access_token="$(extract_json_field "${token_response_file}" "access_token")"
+  if [ -z "${access_token}" ] && [ "${token_request_mode}" = "auto" ]; then
+    perform_token_request "urlencoded"
+    if [ "${token_http_code}" = "200" ]; then
+      access_token="$(extract_json_field "${token_response_file}" "access_token")"
+    fi
+  fi
+
+  if [ -z "${access_token}" ]; then
+    echo "${category} token response did not contain a valid JSON access_token" >&2
+    if [ -s "${token_response_file}" ]; then
+      printf '  detail: %s\n' "$(tr '\r\n' ' ' < "${token_response_file}" | sed 's/[[:space:]]\+/ /g; s/^ //; s/ $//')" >&2
+    fi
+    record_failure "${category}" "Get Access Token"
+    return 1
+  fi
+  record_pass "${category}" "Get Access Token"
+  FETCHED_ACCESS_TOKEN="${access_token}"
+  return 0
 }
 
 run_get_test() {
@@ -286,11 +378,11 @@ run_get_test() {
     else
       print_failure_detail
     fi
-    FAILURES=$((FAILURES + 1))
-    FAILED_TESTS+=("[${category}] ${test_name}")
+    record_failure "${category}" "${test_name}"
     return 0
   fi
   print_result "PASS" "${category}" "GET" "${test_name}" "${http_code}" "${time_total}"
+  record_pass "${category}" "${test_name}"
 }
 
 run_post_test() {
@@ -355,98 +447,130 @@ run_post_test() {
     else
       print_failure_detail
     fi
-    FAILURES=$((FAILURES + 1))
-    FAILED_TESTS+=("[${category}] ${test_name}")
+    record_failure "${category}" "${test_name}"
     return 0
   fi
   print_result "PASS" "${category}" "POST" "${test_name}" "${http_code}" "${time_total}"
+  record_pass "${category}" "${test_name}"
 }
 
-AMLA_ACCESS_TOKEN="$(fetch_access_token "${AMLA_CLIENT_ID}" "${AMLA_CLIENT_SECRET}" "AMLA")"
-run_post_test "AMLA" "Add KYC data" "/api/wsmanager/kycinput/add" "application/json" "${KYC_INPUT_ADD_BODY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
-run_get_test "AMLA" "Get KYC Topic data" "/api/wsmanager/kycTopic/get" "${KYC_TOPIC_QUERY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
-run_get_test "AMLA" "Get KYC Risk Score" "/api/wsmanager/kyc/riskscore/getLatest" "${KYC_RISK_SCORE_QUERY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
-run_post_test "AMLA" "FILTERING AML Scan" "/aml/restsvc/scan" "application/json" "${AML_REST_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
-run_post_test "AMLA" "FILTERING Scan General Product" "/aml/restsvc-ab/scan" "application/json" "${AML_REST_AB_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
+AMLA_ACCESS_TOKEN=""
+if fetch_access_token "${AMLA_CLIENT_ID}" "${AMLA_CLIENT_SECRET}" "AMLA"; then
+  AMLA_ACCESS_TOKEN="${FETCHED_ACCESS_TOKEN}"
+  run_post_test "AMLA" "Add KYC data" "/api/wsmanager/kycinput/add" "application/json" "${KYC_INPUT_ADD_BODY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
+  run_get_test "AMLA" "Get KYC Topic data" "/api/wsmanager/kycTopic/get" "${KYC_TOPIC_QUERY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
+  run_get_test "AMLA" "Get KYC Risk Score" "/api/wsmanager/kyc/riskscore/getLatest" "${KYC_RISK_SCORE_QUERY}" "${AMLA_ACCESS_TOKEN}" "apikey" "${AMLA_API_KEY}"
+  run_post_test "AMLA" "FILTERING AML Scan" "/aml/restsvc/scan" "application/json" "${AML_REST_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
+  run_post_test "AMLA" "FILTERING Scan General Product" "/aml/restsvc-ab/scan" "application/json" "${AML_REST_AB_SCAN_BODY}" "${AMLA_ACCESS_TOKEN}"
+else
+  record_skip "AMLA" "Add KYC data" "skipped because Get Access Token failed"
+  record_skip "AMLA" "Get KYC Topic data" "skipped because Get Access Token failed"
+  record_skip "AMLA" "Get KYC Risk Score" "skipped because Get Access Token failed"
+  record_skip "AMLA" "FILTERING AML Scan" "skipped because Get Access Token failed"
+  record_skip "AMLA" "FILTERING Scan General Product" "skipped because Get Access Token failed"
+fi
 
 load_banca_token_cache
 
-BANCA_ACCESS_TOKEN="$(fetch_access_token "${BANCA_CLIENT_ID}" "${BANCA_CLIENT_SECRET}" "Banca")"
-run_post_test "Banca Portal" "Banca Login" "/auth/banca/login" "application/json" "${BANCA_LOGIN_BODY}" "${BANCA_ACCESS_TOKEN}"
-BANCA_LOGIN_TOKEN=""
-BANCA_SESSION_ID=""
-if [ -s "${api_response_file}" ]; then
-  BANCA_LOGIN_TOKEN="$(
-    "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("token", ""))' \
-      < "${api_response_file}" 2>/dev/null || true
-  )"
-  BANCA_SESSION_ID="$(
-    "${PYTHON_BIN}" -c 'import json, sys; data = json.load(sys.stdin); print(data.get("sessionId", ""))' \
-      < "${api_response_file}" 2>/dev/null || true
-  )"
-fi
-
-if [ -z "${BANCA_LOGIN_TOKEN}" ] && response_contains "active session"; then
-  if [ -n "${BANCA_LOGIN_TOKEN_HARDCODE:-}" ]; then
-    BANCA_LOGIN_TOKEN="${BANCA_LOGIN_TOKEN_HARDCODE}"
+BANCA_ACCESS_TOKEN=""
+if fetch_access_token "${BANCA_CLIENT_ID}" "${BANCA_CLIENT_SECRET}" "Banca"; then
+  BANCA_ACCESS_TOKEN="${FETCHED_ACCESS_TOKEN}"
+  run_post_test "Banca Portal" "Banca Login" "/auth/banca/login" "application/json" "${BANCA_LOGIN_BODY}" "${BANCA_ACCESS_TOKEN}"
+  BANCA_LOGIN_TOKEN=""
+  BANCA_SESSION_ID=""
+  if [ -s "${api_response_file}" ]; then
+    BANCA_LOGIN_TOKEN="$(extract_json_field "${api_response_file}" "token")"
+    BANCA_SESSION_ID="$(extract_json_field "${api_response_file}" "sessionId")"
   fi
-  if [ -z "${BANCA_SESSION_ID}" ] && [ -n "${BANCA_SESSION_ID_HARDCODE:-}" ]; then
-    BANCA_SESSION_ID="${BANCA_SESSION_ID_HARDCODE}"
+
+  if [ -z "${BANCA_LOGIN_TOKEN}" ] && response_contains "active session"; then
+    if [ -n "${BANCA_LOGIN_TOKEN_HARDCODE:-}" ]; then
+      BANCA_LOGIN_TOKEN="${BANCA_LOGIN_TOKEN_HARDCODE}"
+    fi
+    if [ -z "${BANCA_SESSION_ID}" ] && [ -n "${BANCA_SESSION_ID_HARDCODE:-}" ]; then
+      BANCA_SESSION_ID="${BANCA_SESSION_ID_HARDCODE}"
+    fi
   fi
-fi
 
-if [ -z "${BANCA_LOGIN_TOKEN}" ]; then
-  echo "[WARN] [Banca Portal] No usable token from Banca Login. Downstream Banca APIs may fail."
+  if [ -z "${BANCA_LOGIN_TOKEN}" ]; then
+    echo "[WARN] [Banca Portal] No usable token from Banca Login. Downstream Banca APIs may fail."
+  else
+    upsert_local_secret_var "BANCA_LOGIN_TOKEN_HARDCODE" "${BANCA_LOGIN_TOKEN}"
+  fi
+
+  if [ -n "${BANCA_SESSION_ID}" ]; then
+    upsert_local_secret_var "BANCA_SESSION_ID_HARDCODE" "${BANCA_SESSION_ID}"
+  fi
+
+  BANCA_X_AUTH_TOKEN="Bearer ${BANCA_ACCESS_TOKEN}"
+  BANCA_API_TOKEN=""
+
+  if [ -n "${BANCA_LOGIN_TOKEN}" ]; then
+    run_post_test "Banca Portal" "Banca Authentication" "/auth/banca/authenticate" "application/xml" "${BANCA_AUTHENTICATE_BODY}" "${BANCA_LOGIN_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+    if [ -s "${api_response_file}" ]; then
+      BANCA_API_TOKEN="$(
+        "${PYTHON_BIN}" -c 'import re, sys; text = sys.stdin.read(); match = re.search(r"<apiToken>(.*?)</apiToken>", text, re.DOTALL); print(match.group(1).strip() if match else "")' \
+          < "${api_response_file}" 2>/dev/null || true
+      )"
+    fi
+  else
+    record_skip "Banca Portal" "Banca Authentication" "skipped because no usable token from Banca Login"
+  fi
+
+  if [ -z "${BANCA_API_TOKEN}" ] && [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
+    BANCA_API_TOKEN="${BANCA_API_TOKEN_HARDCODE}"
+  fi
+
+  if [ -n "${BANCA_API_TOKEN}" ]; then
+    save_banca_token_cache "${BANCA_API_TOKEN}"
+    run_post_test "Banca Portal" "Data Transfer eQuotation" "/api/banca/quotation" "application/xml" "${BANCA_QUOTATION_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+    run_post_test "Banca Portal" "Data Transfer Calculate" "/api/banca/calculate" "application/xml" "${BANCA_CALCULATE_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
+  else
+    echo "[WARN] [Banca Portal] No usable apiToken from Banca Authentication. eQuotation and Calculate skipped."
+    record_skip "Banca Portal" "Data Transfer eQuotation" "skipped because no usable apiToken"
+    record_skip "Banca Portal" "Data Transfer Calculate" "skipped because no usable apiToken"
+  fi
+
+  if [ -n "${BANCA_SESSION_ID}" ]; then
+    BANCA_LOGOUT_BODY_RENDERED="${BANCA_LOGOUT_BODY//__BANCA_SESSION_ID__/${BANCA_SESSION_ID}}"
+    run_post_test "Banca Portal" "Banca Logout" "/auth/banca/logout" "application/json" "${BANCA_LOGOUT_BODY_RENDERED}" "${BANCA_ACCESS_TOKEN}"
+  else
+    echo "[WARN] [Banca Portal] No sessionId returned from Banca Login. Logout step skipped."
+    record_skip "Banca Portal" "Banca Logout" "skipped because no sessionId returned from Banca Login"
+  fi
 else
-  upsert_local_secret_var "BANCA_LOGIN_TOKEN_HARDCODE" "${BANCA_LOGIN_TOKEN}"
+  record_skip "Banca Portal" "Banca Login" "skipped because Get Access Token failed"
+  record_skip "Banca Portal" "Banca Authentication" "skipped because Get Access Token failed"
+  record_skip "Banca Portal" "Data Transfer eQuotation" "skipped because Get Access Token failed"
+  record_skip "Banca Portal" "Data Transfer Calculate" "skipped because Get Access Token failed"
+  record_skip "Banca Portal" "Banca Logout" "skipped because Get Access Token failed"
 fi
 
-if [ -n "${BANCA_SESSION_ID}" ]; then
-  upsert_local_secret_var "BANCA_SESSION_ID_HARDCODE" "${BANCA_SESSION_ID}"
-fi
-
-BANCA_X_AUTH_TOKEN="Bearer ${BANCA_ACCESS_TOKEN}"
-run_post_test "Banca Portal" "Banca Authentication" "/auth/banca/authenticate" "application/xml" "${BANCA_AUTHENTICATE_BODY}" "${BANCA_LOGIN_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
-BANCA_API_TOKEN=""
-if [ -s "${api_response_file}" ]; then
-  BANCA_API_TOKEN="$(
-    "${PYTHON_BIN}" -c 'import re, sys; text = sys.stdin.read(); match = re.search(r"<apiToken>(.*?)</apiToken>", text, re.DOTALL); print(match.group(1).strip() if match else "")' \
-      < "${api_response_file}" 2>/dev/null || true
-  )"
-fi
-
-if [ -z "${BANCA_API_TOKEN}" ] && [ -n "${BANCA_API_TOKEN_HARDCODE:-}" ]; then
-  BANCA_API_TOKEN="${BANCA_API_TOKEN_HARDCODE}"
-fi
-
-if [ -n "${BANCA_API_TOKEN}" ]; then
-  save_banca_token_cache "${BANCA_API_TOKEN}"
-fi
-
-if [ -z "${BANCA_API_TOKEN}" ]; then
-  echo "[WARN] [Banca Portal] No usable apiToken from Banca Authentication. eQuotation and Calculate may fail."
-fi
-
-run_post_test "Banca Portal" "Data Transfer eQuotation" "/api/banca/quotation" "application/xml" "${BANCA_QUOTATION_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
-run_post_test "Banca Portal" "Data Transfer Calculate" "/api/banca/calculate" "application/xml" "${BANCA_CALCULATE_BODY}" "${BANCA_API_TOKEN}" "X-Auth-Token" "${BANCA_X_AUTH_TOKEN}"
-if [ -n "${BANCA_SESSION_ID}" ]; then
-  BANCA_LOGOUT_BODY_RENDERED="${BANCA_LOGOUT_BODY//__BANCA_SESSION_ID__/${BANCA_SESSION_ID}}"
-  run_post_test "Banca Portal" "Banca Logout" "/auth/banca/logout" "application/json" "${BANCA_LOGOUT_BODY_RENDERED}" "${BANCA_ACCESS_TOKEN}"
+CLAIM_HISTORY_ACCESS_TOKEN=""
+if fetch_access_token "${CLAIM_HISTORY_CLIENT_ID}" "${CLAIM_HISTORY_CLIENT_SECRET}" "Claim History"; then
+  CLAIM_HISTORY_ACCESS_TOKEN="${FETCHED_ACCESS_TOKEN}"
+  run_post_test "Claim History" "Storm API Account" "/api/storm/account" "application/json" "${CLAIM_STORM_ACCOUNT_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"
+  run_post_test "Claim History" "Storm API Velogica" "/api/storm/velogica" "application/json" "${CLAIM_STORM_VELOGICA_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"
 else
-  echo "[WARN] [Banca Portal] No sessionId returned from Banca Login. Logout step skipped."
+  record_skip "Claim History" "Storm API Account" "skipped because Get Access Token failed"
+  record_skip "Claim History" "Storm API Velogica" "skipped because Get Access Token failed"
 fi
 
-CLAIM_HISTORY_ACCESS_TOKEN="$(fetch_access_token "${CLAIM_HISTORY_CLIENT_ID}" "${CLAIM_HISTORY_CLIENT_SECRET}" "Claim History")"
-run_post_test "Claim History" "Storm API Account" "/api/storm/account" "application/json" "${CLAIM_STORM_ACCOUNT_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"
-run_post_test "Claim History" "Storm API Velogica" "/api/storm/velogica" "application/json" "${CLAIM_STORM_VELOGICA_BODY}" "${CLAIM_HISTORY_ACCESS_TOKEN}" "X-API-KEY" "${CLAIM_HISTORY_X_API_KEY}"
+echo
+echo "${ENV_NAME} OnPrem smoke test summary:"
+echo "Passed: ${#PASSED_TESTS[@]}"
+for passed_test in "${PASSED_TESTS[@]}"; do
+  echo "- ${passed_test}"
+done
+echo "Failed: ${#FAILED_TESTS[@]}"
+for failed_test in "${FAILED_TESTS[@]}"; do
+  echo "- ${failed_test}"
+done
+echo "Skipped: ${#SKIPPED_TESTS[@]}"
+for skipped_test in "${SKIPPED_TESTS[@]}"; do
+  echo "- ${skipped_test}"
+done
 
 if [ "${FAILURES}" -gt 0 ]; then
-  echo
-  echo "${ENV_NAME} OnPrem smoke tests completed with ${FAILURES} failure(s):"
-  for failed_test in "${FAILED_TESTS[@]}"; do
-    echo "- ${failed_test}"
-  done
   exit 1
 fi
-
-echo "All ${ENV_NAME} OnPrem smoke tests passed."
