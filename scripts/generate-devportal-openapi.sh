@@ -9,6 +9,7 @@ ENV_FILE="kong/env/user/devportal.env"
 OUTPUT_SPEC="Internal Dev Portal.yaml"
 REPORT_FILE="devportal-openapi-report.md"
 INCLUDE_PROD_ROUTES="false"
+OPENAPI_VERSION=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -27,6 +28,10 @@ while [ "$#" -gt 0 ]; do
     --include-prod-routes)
       INCLUDE_PROD_ROUTES="true"
       shift
+      ;;
+    --version)
+      OPENAPI_VERSION="${2:-}"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -56,6 +61,7 @@ ENV_FILE="$ENV_FILE" \
 OUTPUT_SPEC="$OUTPUT_SPEC" \
 REPORT_FILE="$REPORT_FILE" \
 INCLUDE_PROD_ROUTES="$INCLUDE_PROD_ROUTES" \
+OPENAPI_VERSION="$OPENAPI_VERSION" \
 perl <<'PERL'
 use strict;
 use warnings;
@@ -64,6 +70,7 @@ my $env_file = $ENV{ENV_FILE};
 my $output_spec = $ENV{OUTPUT_SPEC};
 my $report_file = $ENV{REPORT_FILE};
 my $include_prod_routes = $ENV{INCLUDE_PROD_ROUTES} eq 'true';
+my $explicit_version = $ENV{OPENAPI_VERSION} || '';
 
 sub read_file {
   my ($path) = @_;
@@ -216,7 +223,7 @@ sub extract_routes {
 my %env = parse_env($env_file);
 my %service_has_oidc = extract_service_oidc();
 my @routes = extract_routes();
-my $version = increment_patch(read_version($output_spec));
+my $version = $explicit_version ne '' ? $explicit_version : increment_patch(read_version($output_spec));
 
 my %tag_seen;
 my @tags;
