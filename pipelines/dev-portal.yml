@@ -1,0 +1,81 @@
+parameters:
+- name: devportalEnvFile
+  type: string
+  default: kong/env/user/devportal.env
+- name: outputSpec
+  type: string
+  default: Internal Dev Portal.yaml
+- name: includeProdRoutes
+  type: boolean
+  default: false
+
+stages:
+- stage: Generate_Dev_Portal_OpenAPI
+  displayName: Generate Developer Portal OpenAPI
+  condition: "and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/development'))"
+  jobs:
+  - job: GenerateOpenApi
+    displayName: Generate OpenAPI from Kong Gateway routes
+    pool:
+      name: cicd-agent
+    steps:
+    - checkout: self
+      clean: true
+      fetchDepth: 0
+      persistCredentials: true
+      displayName: Checkout self
+
+    - bash: |
+        set -euo pipefail
+        git checkout --force "$(Build.SourceVersion)"
+        ACTUAL_COMMIT="$(git rev-parse HEAD)"
+        echo "Branch: $(Build.SourceBranch)"
+        echo "Requested commit: $(Build.SourceVersion)"
+        echo "Checked out commit: ${ACTUAL_COMMIT}"
+        test "$ACTUAL_COMMIT" = "$(Build.SourceVersion)"
+      displayName: Pin checkout to selected commit
+
+    - bash: |
+        set -euo pipefail
+        ENV_FILE="${{ parameters.devportalEnvFile }}"
+        case "$ENV_FILE" in
+          */devportal.env|devportal.env) ;;
+          *)
+            echo "Dev Portal generation can only read devportal.env. Received: $ENV_FILE"
+            exit 1
+            ;;
+        esac
+        test -f "$ENV_FILE" || { echo "Dev Portal env file not found: $ENV_FILE"; exit 1; }
+      displayName: Validate Dev Portal env scope
+
+    - bash: |
+        set -euo pipefail
+        INCLUDE_PROD=""
+        if [ "${{ parameters.includeProdRoutes }}" = "True" ] || [ "${{ parameters.includeProdRoutes }}" = "true" ]; then
+          INCLUDE_PROD="--include-prod-routes"
+        fi
+
+        bash scripts/generate-devportal-openapi.sh \
+          --env-file "${{ parameters.devportalEnvFile }}" \
+          --output "${{ parameters.outputSpec }}" \
+          --report "devportal-openapi-report.md" \
+          $INCLUDE_PROD
+      displayName: Generate OpenAPI spec
+
+    - bash: |
+        set -euo pipefail
+        test -s "${{ parameters.outputSpec }}" || { echo "Generated OpenAPI spec is empty"; exit 1; }
+        test -s "devportal-openapi-report.md" || { echo "Generated Dev Portal report is empty"; exit 1; }
+        grep -q '^openapi:' "${{ parameters.outputSpec }}" || { echo "Generated OpenAPI spec missing openapi field"; exit 1; }
+        grep -q '^paths:' "${{ parameters.outputSpec }}" || { echo "Generated OpenAPI spec missing paths field"; exit 1; }
+        echo "Generated OpenAPI spec:"
+        grep -E '^(openapi:|  version:|  title:)' "${{ parameters.outputSpec }}" || true
+      displayName: Validate generated spec surface
+
+    - publish: ${{ parameters.outputSpec }}
+      artifact: devportal-openapi
+      displayName: Publish generated OpenAPI artifact
+
+    - publish: devportal-openapi-report.md
+      artifact: devportal-openapi-report
+      displayName: Publish generated OpenAPI report

@@ -2,6 +2,8 @@
 
 This repository is the source of truth for Kong decK configuration and promotion flow across environments.
 
+Detailed Azure DevOps operations documentation is available in [docs/azure-devops-system-guide.md](docs/azure-devops-system-guide.md).
+
 For `OnPrem`, the current mechanism is:
 
 - shared base state lives in `kong/internal/onprem/`
@@ -172,6 +174,20 @@ Values currently parameterized include:
 - `BANCAWEB_SERVICE_HOST`
 - `CLAIMHISTORY_STORM_SERVICE_HOST`
 - `KYC_WSMANAGER_SERVICE_HOST`
+- `AML_REST_SERVICE_PROTOCOL`
+- `BANCAWEB_SERVICE_PROTOCOL`
+- `CLAIMHISTORY_STORM_SERVICE_PROTOCOL`
+- `KYC_WSMANAGER_SERVICE_PROTOCOL`
+- `CORS_ALLOWED_ORIGIN`
+- `AML_REST_SERVICE_PORT`
+- `BANCAWEB_SERVICE_PORT`
+- `CLAIMHISTORY_STORM_SERVICE_PORT`
+- `KYC_WSMANAGER_SERVICE_PORT`
+- `BANCA_AUTHENTICATE_UPSTREAM_URI`
+- `BANCA_LOGIN_UPSTREAM_URI`
+- `BANCA_LOGOUT_UPSTREAM_URI`
+- `BANCA_CALCULATE_UPSTREAM_URI`
+- `BANCA_EQUOTATION_UPSTREAM_URI`
 - `GET_TOKEN_SERVICE_NAME`
 - `GET_TOKEN_SERVICE_HOST`
 - `ISSUER_URL`
@@ -187,6 +203,38 @@ Values currently parameterized include:
 - `STANDARD_BANCA_PORTAL_USER_CUSTOM_ID`
 - `STANDARD_CLAIM_HISTORY_USER_CUSTOM_ID`
 
+OnPrem user env value descriptions:
+
+| Variable | Description |
+| --- | --- |
+| `INTERNAL_TLS_HOST` | Internal TLS/SNI host for the selected dataplane environment. |
+| `PUBLIC_HOST_PRIMARY` | Primary public host opened on the dataplane for each environment, for example `dev`, `uat`, `prod`, `dr`, or `preprod`. |
+| `PUBLIC_HOST_SECONDARY` | Secondary public host opened on the dataplane for each environment. Leave blank when no secondary host is required. |
+| `AML_REST_SERVICE_HOST` | Upstream host for the AML REST service in the selected environment. |
+| `BANCAWEB_SERVICE_HOST` | Upstream host for the BancaWeb service in the selected environment. |
+| `CLAIMHISTORY_STORM_SERVICE_HOST` | Upstream host for the Claim History Storm service in the selected environment. |
+| `KYC_WSMANAGER_SERVICE_HOST` | Upstream host for the KYC WSManager service in the selected environment. |
+| `AML_REST_SERVICE_PROTOCOL` | Upstream protocol used by Kong when proxying to the AML REST service, such as `http` or `https`. |_HOST=Upstream host for the BancaWeb service in the selected environment.
+| `BANCAWEB_SERVICE_PROTOCOL` | Upstream protocol used by Kong when proxying to the BancaWeb service, such as `http` or `https`. |
+| `CLAIMHISTORY_STORM_SERVICE_PROTOCOL` | Upstream protocol used by Kong when proxying to the Claim History Storm service, such as `http` or `https`. |
+| `KYC_WSMANAGER_SERVICE_PROTOCOL` | Upstream protocol used by Kong when proxying to the KYC WSManager service, such as `http` or `https`. |
+| `CORS_ALLOWED_ORIGIN` | Allowed origin value for the global CORS plugin. Use `*` only when all origins should be allowed. |
+| `AML_REST_SERVICE_PORT` | Upstream port used by Kong when proxying to the AML REST service. |
+| `BANCAWEB_SERVICE_PORT` | Upstream port used by Kong when proxying to the BancaWeb service. |
+| `CLAIMHISTORY_STORM_SERVICE_PORT` | Upstream port used by Kong when proxying to the Claim History Storm service. |
+| `KYC_WSMANAGER_SERVICE_PORT` | Upstream port used by Kong when proxying to the KYC WSManager service. |
+| `BANCA_AUTHENTICATE_UPSTREAM_URI` | BancaWeb upstream URI used for the authentication route request rewrite. |
+| `BANCA_LOGIN_UPSTREAM_URI` | BancaWeb upstream URI used for the login route request rewrite. |
+| `BANCA_LOGOUT_UPSTREAM_URI` | BancaWeb upstream URI used for the logout route request rewrite. |
+| `BANCA_CALCULATE_UPSTREAM_URI` | BancaWeb upstream URI used for the calculate route request rewrite. |
+| `BANCA_EQUOTATION_UPSTREAM_URI` | BancaWeb upstream URI used for the eQuotation route request rewrite. |
+| `STANDARD_AMLA_API_RATE_LIMIT_MINUTE` | Standard AMLA API consumer rate limit per minute. |
+| `STANDARD_AMLA_API_RATE_LIMIT_HOUR` | Standard AMLA API consumer rate limit per hour. |
+| `STANDARD_BANCA_PORTAL_RATE_LIMIT_MINUTE` | Standard Banca Portal consumer rate limit per minute. |
+| `STANDARD_BANCA_PORTAL_RATE_LIMIT_HOUR` | Standard Banca Portal consumer rate limit per hour. |
+| `STANDARD_CLAIM_HISTORY_RATE_LIMIT_MINUTE` | Standard Claim History consumer rate limit per minute. |
+| `STANDARD_CLAIM_HISTORY_RATE_LIMIT_HOUR` | Standard Claim History consumer rate limit per hour. |
+
 Notes:
 
 - `PUBLIC_HOST_PRIMARY` is required
@@ -196,23 +244,64 @@ Notes:
 
 ## Deployment And Promotion Flow
 
-Shared high-level behavior:
+Deployment and promotion use one operational flow after the target state is prepared.
+The only difference is how the rendered target state is selected:
+
+- `deployment` renders the selected environment directly.
+- `promotion` renders the target environment for the target control plane.
+- `DR` promotion renders from the production env files and injects DR Redis partial references through a runtime override.
+
+Merged flow image:
+
+![Deployment and promotion flow](docs/diagrams/deployment-promotion-flow.svg)
+
+Deployment-only flow image:
+
+![Deployment pipeline flow](docs/diagrams/deployment-pipeline-flow.svg)
+
+Promotion-only flow image:
+
+![Promotion pipeline flow](docs/diagrams/promotion-pipeline-flow.svg)
+
+```mermaid
+flowchart LR
+    A[Azure DevOps pipeline triggered] --> B[Checkout repository]
+    B --> C[Load environment files<br/>deployment: selected env<br/>promotion: target env or override]
+    C --> D[Replace placeholders<br/>host, port, protocol,<br/>vault refs, Redis partials]
+    D --> E[Validate Kong declarative config]
+    E --> F{Failed?}
+    F -->|Verification failed| G[End pipeline]
+    F -->|Verification pass| H[Deploy / sync config<br/>to Kong control plane]
+    H --> I[Post-deployment verification<br/>routes, auth, plugins, upstream]
+    I --> J[Deployment or promotion completed]
+
+    classDef default fill:#f2f2f2,stroke:#999,stroke-width:2px,color:#333;
+    classDef decision fill:#fff2c6,stroke:#d3aa32,stroke-width:2px,color:#333;
+    classDef success fill:#dcefd7,stroke:#7db36f,stroke-width:2px,color:#333;
+    classDef stop fill:#f3cccc,stroke:#c65353,stroke-width:2px,color:#333;
+    class F decision;
+    class G stop;
+    class J success;
+```
+
+Merged high-level behavior:
 
 1. Checkout repository and pin to the selected commit ID.
 2. Install decK.
 3. Validate required secrets.
-4. Resolve control plane and env file.
-5. Render `kong/internal/onprem` with the selected `kong/env/user/*-onprem.env`, which is merged with the matching `kong/env/system/*-system.env`.
-6. Run `deck gateway ping`, `deck file validate`, and `diff` on the rendered output.
-7. If changes exist, back up current state.
-8. Publish the backup artifact.
-9. Run `deck gateway sync`.
+4. Prepare the target state for the selected mode.
+5. Render `kong/internal/onprem` with the selected `kong/env/user/*-onprem.env`, which is merged with the matching `kong/env/system/*-system.env` and optional promotion override.
+6. Replace placeholders for hosts, ports, protocol, vault refs, Redis partials, and other environment values.
+7. Run `deck gateway ping`, validation, and `deck gateway diff` on the rendered output. Promotion also runs the rendered Redis partial reference check before `deck file validate`.
+8. If changes exist, back up current state.
+9. Publish the backup artifact.
+10. Run `deck gateway sync`.
 
 Promotion behavior:
 
 - promotion does not copy repo folders for `OnPrem`
 - it renders the same shared base using the target environment file
-- then it deploys that rendered target state to the selected target control plane
+- then it runs the same ping, validation, diff, backup, artifact, and sync steps as deployment
 - `DR` promotion does not use `kong/env/user/dr-onprem.env`
 - `DR` promotion renders from `kong/env/user/prod-onprem.env` and switches Redis-backed plugin references through an override
 
