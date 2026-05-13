@@ -154,10 +154,16 @@ stages:
         grep -E '^(openapi:|  version:|  title:)' "${{ parameters.outputSpec }}" || true
       displayName: Validate generated spec surface
 
-    - publish: ${{ parameters.outputSpec }}
-      artifact: devportal-openapi
+    - task: PublishBuildArtifacts@1
       displayName: Publish generated OpenAPI artifact
+      inputs:
+        PathtoPublish: ${{ parameters.outputSpec }}
+        ArtifactName: devportal-openapi
+        publishLocation: Container
 
-    - publish: devportal-openapi-report.md
-      artifact: devportal-openapi-report
+    - task: PublishBuildArtifacts@1
       displayName: Publish generated OpenAPI report
+      inputs:
+        PathtoPublish: devportal-openapi-report.md
+        ArtifactName: devportal-openapi-report
+        publishLocation: Container

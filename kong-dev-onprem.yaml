@@ -282,7 +282,7 @@ plugins:
     - TRACE
     - CONNECT
     origins:
-    - https://dev-nonprod.takaful-malaysia.com.my
+    - '*'
     preflight_continue: false
     private_network: false
   enabled: true
@@ -422,15 +422,8 @@ services:
       - aud
       audience_required: null
       auth_methods:
-      - password
-      - client_credentials
-      - authorization_code
       - bearer
       - introspection
-      - userinfo
-      - kong_oauth2
-      - refresh_token
-      - session
       authenticated_groups_claim: null
       authorization_cookie_domain: null
       authorization_cookie_http_only: true
@@ -516,6 +509,8 @@ services:
       - custom_id
       consumer_claim:
       - sub
+      consumer_claims:
+      - - sub
       consumer_groups_claim: null
       consumer_groups_optional: false
       consumer_optional: false
@@ -528,6 +523,7 @@ services:
       domains: null
       downstream_access_token_header: null
       downstream_access_token_jwk_header: null
+      downstream_headers: null
       downstream_headers_claims: null
       downstream_headers_names: null
       downstream_id_token_header: null
@@ -578,6 +574,7 @@ services:
       introspection_token_param_name: token
       issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
       issuers_allowed: null
+      jwks_endpoint: null
       jwt_session_claim: sid
       jwt_session_cookie: null
       keepalive: true
@@ -686,13 +683,10 @@ services:
       session_absolute_timeout: 86400
       session_audience: default
       session_bind: null
-      session_compressor: none
       session_cookie_domain: null
       session_cookie_http_only: true
-      session_cookie_maxsize: 4000
       session_cookie_name: session
       session_cookie_path: /
-      session_cookie_renew: 600
       session_cookie_same_site: Lax
       session_cookie_secure: null
       session_enforce_same_subject: false
@@ -729,7 +723,6 @@ services:
       session_secret: null
       session_storage: cookie
       session_store_metadata: false
-      session_strategy: default
       ssl_verify: false
       timeout: 10000
       tls_client_auth_cert_id: null
@@ -737,6 +730,7 @@ services:
       token_cache_key_include_scope: false
       token_endpoint: null
       token_endpoint_auth_method: null
+      token_exchange: null
       token_exchange_endpoint: null
       token_headers_client: null
       token_headers_grants: null
@@ -753,6 +747,7 @@ services:
       unexpected_redirect_uri: null
       upstream_access_token_header: authorization:bearer
       upstream_access_token_jwk_header: null
+      upstream_headers: null
       upstream_headers_claims: null
       upstream_headers_names: null
       upstream_id_token_header: null
@@ -779,6 +774,205 @@ services:
     enabled: true
     instance_name: AML-RestSvc-OIDC
     name: openid-connect
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+  - config:
+      access:
+      - |
+        kong.service.request.enable_buffering()
+
+        local b = kong.request.get_raw_body()
+        if b then
+          kong.ctx.shared.req_body = b
+        end
+      body_filter:
+      - |
+        local chunk = ngx.arg[1]
+        local eof   = ngx.arg[2]
+
+        kong.ctx.shared.res_chunks = kong.ctx.shared.res_chunks or {}
+
+        if chunk and #chunk > 0 then
+          table.insert(kong.ctx.shared.res_chunks, chunk)
+        end
+
+        if eof then
+          kong.ctx.shared.res_body = table.concat(kong.ctx.shared.res_chunks)
+          kong.ctx.shared.res_chunks = nil
+        end
+      certificate: []
+      functions: []
+      header_filter: []
+      log:
+      - |
+        local function replace_json_key(s, key)
+          s = s:gsub('(\"' .. key .. '\"%s*:%s*\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_tag(s, tag)
+          s = s:gsub('(<' .. tag .. '>)(.-)(</' .. tag .. '>)', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_attr(s, attr)
+          s = s:gsub('(' .. attr .. '=\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function looks_like_pdf(s)
+          return type(s) == 'string' and s:find('^%%PDF%-')
+        end
+
+        local function looks_like_html(s)
+          if type(s) ~= 'string' then
+            return false
+          end
+          local lower = s:lower()
+          return lower:find('<!doctype html', 1, true)
+              or lower:find('<html', 1, true)
+              or lower:find('<body', 1, true)
+        end
+
+        local function redact_text(s)
+          if type(s) ~= 'string' then
+            return s
+          end
+
+          local json_keys = {
+            'token', 'apiToken', 'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+            'password', 'passwd', 'secret', 'apiKey', 'sessionId',
+            'nric', 'userNric', 'nric_no', 'identificationNumber',
+            'fullName', 'full_name', 'userName',
+            'email', 'userEmail',
+            'phone', 'userMobile', 'mobileNumber',
+            'address', 'postcode',
+            'eCertNo', 'e_cover_note', 'e_covernote',
+            'QuotationNo', 'policy_no', 'reference_no',
+            'vehRegNo', 'vehicle_no',
+            'rawDecryptedValue',
+            'clientKey', 'client_key', 'tempKey', 'temp_key',
+            'renewalUrl'
+          }
+
+          for _, key in ipairs(json_keys) do
+            s = replace_json_key(s, key)
+          end
+
+          local xml_tags = {
+            'apiToken', 'clientKey', 'nric', 'userNric', 'fullName',
+            'email', 'mobileNumber', 'QuotationNo'
+          }
+
+          for _, tag in ipairs(xml_tags) do
+            s = replace_xml_tag(s, tag)
+          end
+
+          local xml_attrs = {
+            'client_key', 'temp_key', 'tempKey'
+          }
+
+          for _, attr in ipairs(xml_attrs) do
+            s = replace_xml_attr(s, attr)
+          end
+
+          s = s:gsub('[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+', '*REDACTED*')
+          s = s:gsub('%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x', '*REDACTED*')
+          s = s:gsub('[a-zA-Z0-9%.%%%+%-]+@[a-zA-Z0-9%.%-]+%.[a-zA-Z][a-zA-Z]+', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%d%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%-%d%d%-%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]0%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]6%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+
+          return s
+        end
+
+        local function process_body(raw)
+          if not raw or raw == '' then
+            return nil
+          end
+
+          if looks_like_pdf(raw) then
+            return '*REDACTED_BINARY_PDF*'
+          end
+
+          if looks_like_html(raw) then
+            return '*REDACTED_HTML_BODY*'
+          end
+
+          return redact_text(raw)
+        end
+
+        local function sanitize_urlish(value)
+          if type(value) ~= 'string' then
+            return value
+          end
+
+          value = value:gsub('([?&]e_certificate_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]nric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]userNric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]identificationNumber=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehRegNo=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehicle_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]policy_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]reference_no=)[^&]+', '%1*REDACTED*')
+          return value
+        end
+
+        local req = process_body(kong.ctx.shared.req_body)
+        if req then
+          kong.log.set_serialize_value('request.body', req)
+        end
+
+        local res = process_body(kong.ctx.shared.res_body)
+        if res then
+          kong.log.set_serialize_value('response.body', res)
+        end
+
+        kong.log.set_serialize_value('request.headers.authorization', '*REDACTED*')
+        kong.log.set_serialize_value('request.headers.cookie', '*REDACTED*')
+        kong.log.set_serialize_value('response.headers.set-cookie', '*REDACTED*')
+
+        local request_uri = kong.request.get_path_with_query()
+        if request_uri then
+          kong.log.set_serialize_value('request.uri', sanitize_urlish(request_uri))
+        end
+
+        local scheme = kong.request.get_scheme()
+        local host = kong.request.get_host()
+        if scheme and host and request_uri then
+          kong.log.set_serialize_value('request.url', sanitize_urlish(scheme .. '://' .. host .. request_uri))
+        end
+
+        local raw_query = kong.request.get_query()
+        if type(raw_query) == 'table' then
+          local query_keys = {
+            'e_certificate_no', 'nric', 'userNric', 'identificationNumber',
+            'vehRegNo', 'vehicle_no', 'policy_no', 'reference_no'
+          }
+
+          for _, key in ipairs(query_keys) do
+            if raw_query[key] ~= nil then
+              kong.log.set_serialize_value('request.querystring.' .. key, '*REDACTED*')
+            end
+          end
+        end
+
+        local upstream_uri = kong.ctx and kong.ctx.core and kong.ctx.core.upstream_uri
+        if type(upstream_uri) == 'string' then
+          kong.log.set_serialize_value('upstream_uri', sanitize_urlish(upstream_uri))
+        end
+      rewrite: []
+      ws_client_frame: []
+      ws_close: []
+      ws_handshake: []
+      ws_upstream_frame: []
+    enabled: true
+    instance_name: AML-Rest-Services-PII-Redaction-Logger
+    name: pre-function
     protocols:
     - grpc
     - grpcs
@@ -897,7 +1091,7 @@ services:
   write_timeout: 60000
 - connect_timeout: 60000
   enabled: true
-  host: 10.30.101.177
+  host: wintelappuat.takaful-malaysia.com.my
   name: BancaWeb-API
   plugins:
   - config:
@@ -911,7 +1105,206 @@ services:
     - grpcs
     - http
     - https
-  port: 7774
+  - config:
+      access:
+      - |
+        kong.service.request.enable_buffering()
+
+        local b = kong.request.get_raw_body()
+        if b then
+          kong.ctx.shared.req_body = b
+        end
+      body_filter:
+      - |
+        local chunk = ngx.arg[1]
+        local eof   = ngx.arg[2]
+
+        kong.ctx.shared.res_chunks = kong.ctx.shared.res_chunks or {}
+
+        if chunk and #chunk > 0 then
+          table.insert(kong.ctx.shared.res_chunks, chunk)
+        end
+
+        if eof then
+          kong.ctx.shared.res_body = table.concat(kong.ctx.shared.res_chunks)
+          kong.ctx.shared.res_chunks = nil
+        end
+      certificate: []
+      functions: []
+      header_filter: []
+      log:
+      - |
+        local function replace_json_key(s, key)
+          s = s:gsub('(\"' .. key .. '\"%s*:%s*\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_tag(s, tag)
+          s = s:gsub('(<' .. tag .. '>)(.-)(</' .. tag .. '>)', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_attr(s, attr)
+          s = s:gsub('(' .. attr .. '=\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function looks_like_pdf(s)
+          return type(s) == 'string' and s:find('^%%PDF%-')
+        end
+
+        local function looks_like_html(s)
+          if type(s) ~= 'string' then
+            return false
+          end
+          local lower = s:lower()
+          return lower:find('<!doctype html', 1, true)
+              or lower:find('<html', 1, true)
+              or lower:find('<body', 1, true)
+        end
+
+        local function redact_text(s)
+          if type(s) ~= 'string' then
+            return s
+          end
+
+          local json_keys = {
+            'token', 'apiToken', 'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+            'password', 'passwd', 'secret', 'apiKey', 'sessionId',
+            'nric', 'userNric', 'nric_no', 'identificationNumber',
+            'fullName', 'full_name', 'userName',
+            'email', 'userEmail',
+            'phone', 'userMobile', 'mobileNumber',
+            'address', 'postcode',
+            'eCertNo', 'e_cover_note', 'e_covernote',
+            'QuotationNo', 'policy_no', 'reference_no',
+            'vehRegNo', 'vehicle_no',
+            'rawDecryptedValue',
+            'clientKey', 'client_key', 'tempKey', 'temp_key',
+            'renewalUrl'
+          }
+
+          for _, key in ipairs(json_keys) do
+            s = replace_json_key(s, key)
+          end
+
+          local xml_tags = {
+            'apiToken', 'clientKey', 'nric', 'userNric', 'fullName',
+            'email', 'mobileNumber', 'QuotationNo'
+          }
+
+          for _, tag in ipairs(xml_tags) do
+            s = replace_xml_tag(s, tag)
+          end
+
+          local xml_attrs = {
+            'client_key', 'temp_key', 'tempKey'
+          }
+
+          for _, attr in ipairs(xml_attrs) do
+            s = replace_xml_attr(s, attr)
+          end
+
+          s = s:gsub('[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+', '*REDACTED*')
+          s = s:gsub('%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x', '*REDACTED*')
+          s = s:gsub('[a-zA-Z0-9%.%%%+%-]+@[a-zA-Z0-9%.%-]+%.[a-zA-Z][a-zA-Z]+', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%d%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%-%d%d%-%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]0%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]6%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+
+          return s
+        end
+
+        local function process_body(raw)
+          if not raw or raw == '' then
+            return nil
+          end
+
+          if looks_like_pdf(raw) then
+            return '*REDACTED_BINARY_PDF*'
+          end
+
+          if looks_like_html(raw) then
+            return '*REDACTED_HTML_BODY*'
+          end
+
+          return redact_text(raw)
+        end
+
+        local function sanitize_urlish(value)
+          if type(value) ~= 'string' then
+            return value
+          end
+
+          value = value:gsub('([?&]e_certificate_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]nric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]userNric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]identificationNumber=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehRegNo=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehicle_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]policy_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]reference_no=)[^&]+', '%1*REDACTED*')
+          return value
+        end
+
+        local req = process_body(kong.ctx.shared.req_body)
+        if req then
+          kong.log.set_serialize_value('request.body', req)
+        end
+
+        local res = process_body(kong.ctx.shared.res_body)
+        if res then
+          kong.log.set_serialize_value('response.body', res)
+        end
+
+        kong.log.set_serialize_value('request.headers.authorization', '*REDACTED*')
+        kong.log.set_serialize_value('request.headers.cookie', '*REDACTED*')
+        kong.log.set_serialize_value('response.headers.set-cookie', '*REDACTED*')
+
+        local request_uri = kong.request.get_path_with_query()
+        if request_uri then
+          kong.log.set_serialize_value('request.uri', sanitize_urlish(request_uri))
+        end
+
+        local scheme = kong.request.get_scheme()
+        local host = kong.request.get_host()
+        if scheme and host and request_uri then
+          kong.log.set_serialize_value('request.url', sanitize_urlish(scheme .. '://' .. host .. request_uri))
+        end
+
+        local raw_query = kong.request.get_query()
+        if type(raw_query) == 'table' then
+          local query_keys = {
+            'e_certificate_no', 'nric', 'userNric', 'identificationNumber',
+            'vehRegNo', 'vehicle_no', 'policy_no', 'reference_no'
+          }
+
+          for _, key in ipairs(query_keys) do
+            if raw_query[key] ~= nil then
+              kong.log.set_serialize_value('request.querystring.' .. key, '*REDACTED*')
+            end
+          end
+        end
+
+        local upstream_uri = kong.ctx and kong.ctx.core and kong.ctx.core.upstream_uri
+        if type(upstream_uri) == 'string' then
+          kong.log.set_serialize_value('upstream_uri', sanitize_urlish(upstream_uri))
+        end
+      rewrite: []
+      ws_client_frame: []
+      ws_close: []
+      ws_handshake: []
+      ws_upstream_frame: []
+    enabled: true
+    instance_name: BancaWeb-API-PII-Redaction-Logger
+    name: pre-function
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+  port: 80
   protocol: http
   read_timeout: 60000
   retries: 5
@@ -1027,6 +1420,8 @@ services:
         - custom_id
         consumer_claim:
         - sub
+        consumer_claims:
+        - - sub
         consumer_groups_claim: null
         consumer_groups_optional: false
         consumer_optional: false
@@ -1039,6 +1434,7 @@ services:
         domains: null
         downstream_access_token_header: null
         downstream_access_token_jwk_header: null
+        downstream_headers: null
         downstream_headers_claims: null
         downstream_headers_names: null
         downstream_id_token_header: null
@@ -1089,6 +1485,7 @@ services:
         introspection_token_param_name: token
         issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
         issuers_allowed: null
+        jwks_endpoint: null
         jwt_session_claim: sid
         jwt_session_cookie: null
         keepalive: true
@@ -1197,13 +1594,10 @@ services:
         session_absolute_timeout: 86400
         session_audience: default
         session_bind: null
-        session_compressor: none
         session_cookie_domain: null
         session_cookie_http_only: true
-        session_cookie_maxsize: 4000
         session_cookie_name: session
         session_cookie_path: /
-        session_cookie_renew: 600
         session_cookie_same_site: Lax
         session_cookie_secure: null
         session_enforce_same_subject: false
@@ -1240,7 +1634,6 @@ services:
         session_secret: null
         session_storage: cookie
         session_store_metadata: false
-        session_strategy: default
         ssl_verify: false
         timeout: 10000
         tls_client_auth_cert_id: null
@@ -1248,6 +1641,7 @@ services:
         token_cache_key_include_scope: false
         token_endpoint: null
         token_endpoint_auth_method: null
+        token_exchange: null
         token_exchange_endpoint: null
         token_headers_client: null
         token_headers_grants: null
@@ -1264,6 +1658,7 @@ services:
         unexpected_redirect_uri: null
         upstream_access_token_header: X-Auth-Token
         upstream_access_token_jwk_header: null
+        upstream_headers: null
         upstream_headers_claims: null
         upstream_headers_names: null
         upstream_id_token_header: null
@@ -1502,7 +1897,7 @@ services:
         consumer_by:
         - username
         - custom_id
-        consumer_claim: null
+        consumer_claims: null
         consumer_groups_claim: null
         consumer_groups_optional: false
         consumer_optional: false
@@ -1515,6 +1910,7 @@ services:
         domains: null
         downstream_access_token_header: null
         downstream_access_token_jwk_header: null
+        downstream_headers: null
         downstream_headers_claims: null
         downstream_headers_names: null
         downstream_id_token_header: null
@@ -1565,6 +1961,7 @@ services:
         introspection_token_param_name: token
         issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
         issuers_allowed: null
+        jwks_endpoint: null
         jwt_session_claim: sid
         jwt_session_cookie: null
         keepalive: true
@@ -1673,13 +2070,10 @@ services:
         session_absolute_timeout: 86400
         session_audience: default
         session_bind: null
-        session_compressor: none
         session_cookie_domain: null
         session_cookie_http_only: true
-        session_cookie_maxsize: 4000
         session_cookie_name: session
         session_cookie_path: /
-        session_cookie_renew: 600
         session_cookie_same_site: Lax
         session_cookie_secure: null
         session_enforce_same_subject: false
@@ -1716,7 +2110,6 @@ services:
         session_secret: null
         session_storage: cookie
         session_store_metadata: false
-        session_strategy: default
         ssl_verify: false
         timeout: 10000
         tls_client_auth_cert_id: null
@@ -1724,6 +2117,7 @@ services:
         token_cache_key_include_scope: false
         token_endpoint: null
         token_endpoint_auth_method: null
+        token_exchange: null
         token_exchange_endpoint: null
         token_headers_client: null
         token_headers_grants: null
@@ -1740,6 +2134,7 @@ services:
         unexpected_redirect_uri: null
         upstream_access_token_header: authorization:bearer
         upstream_access_token_jwk_header: null
+        upstream_headers: null
         upstream_headers_claims: null
         upstream_headers_names: null
         upstream_id_token_header: null
@@ -1946,6 +2341,8 @@ services:
         - custom_id
         consumer_claim:
         - sub
+        consumer_claims:
+        - - sub
         consumer_groups_claim: null
         consumer_groups_optional: false
         consumer_optional: false
@@ -1958,6 +2355,7 @@ services:
         domains: null
         downstream_access_token_header: null
         downstream_access_token_jwk_header: null
+        downstream_headers: null
         downstream_headers_claims: null
         downstream_headers_names: null
         downstream_id_token_header: null
@@ -2008,6 +2406,7 @@ services:
         introspection_token_param_name: token
         issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
         issuers_allowed: null
+        jwks_endpoint: null
         jwt_session_claim: sid
         jwt_session_cookie: null
         keepalive: true
@@ -2116,13 +2515,10 @@ services:
         session_absolute_timeout: 86400
         session_audience: default
         session_bind: null
-        session_compressor: none
         session_cookie_domain: null
         session_cookie_http_only: true
-        session_cookie_maxsize: 4000
         session_cookie_name: session
         session_cookie_path: /
-        session_cookie_renew: 600
         session_cookie_same_site: Lax
         session_cookie_secure: null
         session_enforce_same_subject: false
@@ -2159,7 +2555,6 @@ services:
         session_secret: null
         session_storage: cookie
         session_store_metadata: false
-        session_strategy: default
         ssl_verify: false
         timeout: 10000
         tls_client_auth_cert_id: null
@@ -2167,6 +2562,7 @@ services:
         token_cache_key_include_scope: false
         token_endpoint: null
         token_endpoint_auth_method: null
+        token_exchange: null
         token_exchange_endpoint: null
         token_headers_client: null
         token_headers_grants: null
@@ -2183,6 +2579,7 @@ services:
         unexpected_redirect_uri: null
         upstream_access_token_header: authorization:bearer
         upstream_access_token_jwk_header: null
+        upstream_headers: null
         upstream_headers_claims: null
         upstream_headers_names: null
         upstream_id_token_header: null
@@ -2388,6 +2785,8 @@ services:
         - custom_id
         consumer_claim:
         - sub
+        consumer_claims:
+        - - sub
         consumer_groups_claim: null
         consumer_groups_optional: false
         consumer_optional: false
@@ -2400,6 +2799,7 @@ services:
         domains: null
         downstream_access_token_header: null
         downstream_access_token_jwk_header: null
+        downstream_headers: null
         downstream_headers_claims: null
         downstream_headers_names: null
         downstream_id_token_header: null
@@ -2450,6 +2850,7 @@ services:
         introspection_token_param_name: token
         issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
         issuers_allowed: null
+        jwks_endpoint: null
         jwt_session_claim: sid
         jwt_session_cookie: null
         keepalive: true
@@ -2558,13 +2959,10 @@ services:
         session_absolute_timeout: 86400
         session_audience: default
         session_bind: null
-        session_compressor: none
         session_cookie_domain: null
         session_cookie_http_only: true
-        session_cookie_maxsize: 4000
         session_cookie_name: session
         session_cookie_path: /
-        session_cookie_renew: 600
         session_cookie_same_site: Lax
         session_cookie_secure: null
         session_enforce_same_subject: false
@@ -2601,7 +2999,6 @@ services:
         session_secret: null
         session_storage: cookie
         session_store_metadata: false
-        session_strategy: default
         ssl_verify: false
         timeout: 10000
         tls_client_auth_cert_id: null
@@ -2609,6 +3006,7 @@ services:
         token_cache_key_include_scope: false
         token_endpoint: null
         token_endpoint_auth_method: null
+        token_exchange: null
         token_exchange_endpoint: null
         token_headers_client: null
         token_headers_grants: null
@@ -2625,6 +3023,7 @@ services:
         unexpected_redirect_uri: null
         upstream_access_token_header: authorization:bearer
         upstream_access_token_jwk_header: null
+        upstream_headers: null
         upstream_headers_claims: null
         upstream_headers_names: null
         upstream_id_token_header: null
@@ -2864,6 +3263,8 @@ services:
         - custom_id
         consumer_claim:
         - sub
+        consumer_claims:
+        - - sub
         consumer_groups_claim: null
         consumer_groups_optional: false
         consumer_optional: false
@@ -2876,6 +3277,7 @@ services:
         domains: null
         downstream_access_token_header: null
         downstream_access_token_jwk_header: null
+        downstream_headers: null
         downstream_headers_claims: null
         downstream_headers_names: null
         downstream_id_token_header: null
@@ -2926,6 +3328,7 @@ services:
         introspection_token_param_name: token
         issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
         issuers_allowed: null
+        jwks_endpoint: null
         jwt_session_claim: sid
         jwt_session_cookie: null
         keepalive: true
@@ -3034,13 +3437,10 @@ services:
         session_absolute_timeout: 86400
         session_audience: default
         session_bind: null
-        session_compressor: none
         session_cookie_domain: null
         session_cookie_http_only: true
-        session_cookie_maxsize: 4000
         session_cookie_name: session
         session_cookie_path: /
-        session_cookie_renew: 600
         session_cookie_same_site: Lax
         session_cookie_secure: null
         session_enforce_same_subject: false
@@ -3077,7 +3477,6 @@ services:
         session_secret: null
         session_storage: cookie
         session_store_metadata: false
-        session_strategy: default
         ssl_verify: false
         timeout: 10000
         tls_client_auth_cert_id: null
@@ -3085,6 +3484,7 @@ services:
         token_cache_key_include_scope: false
         token_endpoint: null
         token_endpoint_auth_method: null
+        token_exchange: null
         token_exchange_endpoint: null
         token_headers_client: null
         token_headers_grants: null
@@ -3101,6 +3501,7 @@ services:
         unexpected_redirect_uri: null
         upstream_access_token_header: authorization:bearer
         upstream_access_token_jwk_header: null
+        upstream_headers: null
         upstream_headers_claims: null
         upstream_headers_names: null
         upstream_id_token_header: null
@@ -3256,15 +3657,8 @@ services:
       - aud
       audience_required: null
       auth_methods:
-      - password
-      - client_credentials
-      - authorization_code
       - bearer
       - introspection
-      - userinfo
-      - kong_oauth2
-      - refresh_token
-      - session
       authenticated_groups_claim: null
       authorization_cookie_domain: null
       authorization_cookie_http_only: true
@@ -3350,6 +3744,8 @@ services:
       - custom_id
       consumer_claim:
       - sub
+      consumer_claims:
+      - - sub
       consumer_groups_claim: null
       consumer_groups_optional: false
       consumer_optional: false
@@ -3362,6 +3758,7 @@ services:
       domains: null
       downstream_access_token_header: null
       downstream_access_token_jwk_header: null
+      downstream_headers: null
       downstream_headers_claims: null
       downstream_headers_names: null
       downstream_id_token_header: null
@@ -3412,6 +3809,7 @@ services:
       introspection_token_param_name: token
       issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
       issuers_allowed: null
+      jwks_endpoint: null
       jwt_session_claim: sid
       jwt_session_cookie: null
       keepalive: true
@@ -3520,13 +3918,10 @@ services:
       session_absolute_timeout: 86400
       session_audience: default
       session_bind: null
-      session_compressor: none
       session_cookie_domain: null
       session_cookie_http_only: true
-      session_cookie_maxsize: 4000
       session_cookie_name: session
       session_cookie_path: /
-      session_cookie_renew: 600
       session_cookie_same_site: Lax
       session_cookie_secure: null
       session_enforce_same_subject: false
@@ -3563,7 +3958,6 @@ services:
       session_secret: null
       session_storage: cookie
       session_store_metadata: false
-      session_strategy: default
       ssl_verify: false
       timeout: 10000
       tls_client_auth_cert_id: null
@@ -3571,6 +3965,7 @@ services:
       token_cache_key_include_scope: false
       token_endpoint: null
       token_endpoint_auth_method: null
+      token_exchange: null
       token_exchange_endpoint: null
       token_headers_client: null
       token_headers_grants: null
@@ -3587,6 +3982,7 @@ services:
       unexpected_redirect_uri: null
       upstream_access_token_header: authorization:bearer
       upstream_access_token_jwk_header: null
+      upstream_headers: null
       upstream_headers_claims: null
       upstream_headers_names: null
       upstream_id_token_header: null
@@ -3613,6 +4009,205 @@ services:
     enabled: true
     instance_name: ClaimHistory-Storm-OIDC
     name: openid-connect
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
+  - config:
+      access:
+      - |
+        kong.service.request.enable_buffering()
+
+        local b = kong.request.get_raw_body()
+        if b then
+          kong.ctx.shared.req_body = b
+        end
+      body_filter:
+      - |
+        local chunk = ngx.arg[1]
+        local eof   = ngx.arg[2]
+
+        kong.ctx.shared.res_chunks = kong.ctx.shared.res_chunks or {}
+
+        if chunk and #chunk > 0 then
+          table.insert(kong.ctx.shared.res_chunks, chunk)
+        end
+
+        if eof then
+          kong.ctx.shared.res_body = table.concat(kong.ctx.shared.res_chunks)
+          kong.ctx.shared.res_chunks = nil
+        end
+      certificate: []
+      functions: []
+      header_filter: []
+      log:
+      - |
+        local function replace_json_key(s, key)
+          s = s:gsub('(\"' .. key .. '\"%s*:%s*\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_tag(s, tag)
+          s = s:gsub('(<' .. tag .. '>)(.-)(</' .. tag .. '>)', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_attr(s, attr)
+          s = s:gsub('(' .. attr .. '=\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function looks_like_pdf(s)
+          return type(s) == 'string' and s:find('^%%PDF%-')
+        end
+
+        local function looks_like_html(s)
+          if type(s) ~= 'string' then
+            return false
+          end
+          local lower = s:lower()
+          return lower:find('<!doctype html', 1, true)
+              or lower:find('<html', 1, true)
+              or lower:find('<body', 1, true)
+        end
+
+        local function redact_text(s)
+          if type(s) ~= 'string' then
+            return s
+          end
+
+          local json_keys = {
+            'token', 'apiToken', 'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+            'password', 'passwd', 'secret', 'apiKey', 'sessionId',
+            'nric', 'userNric', 'nric_no', 'identificationNumber',
+            'fullName', 'full_name', 'userName',
+            'email', 'userEmail',
+            'phone', 'userMobile', 'mobileNumber',
+            'address', 'postcode',
+            'eCertNo', 'e_cover_note', 'e_covernote',
+            'QuotationNo', 'policy_no', 'reference_no',
+            'vehRegNo', 'vehicle_no',
+            'rawDecryptedValue',
+            'clientKey', 'client_key', 'tempKey', 'temp_key',
+            'renewalUrl'
+          }
+
+          for _, key in ipairs(json_keys) do
+            s = replace_json_key(s, key)
+          end
+
+          local xml_tags = {
+            'apiToken', 'clientKey', 'nric', 'userNric', 'fullName',
+            'email', 'mobileNumber', 'QuotationNo'
+          }
+
+          for _, tag in ipairs(xml_tags) do
+            s = replace_xml_tag(s, tag)
+          end
+
+          local xml_attrs = {
+            'client_key', 'temp_key', 'tempKey'
+          }
+
+          for _, attr in ipairs(xml_attrs) do
+            s = replace_xml_attr(s, attr)
+          end
+
+          s = s:gsub('[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+', '*REDACTED*')
+          s = s:gsub('%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x', '*REDACTED*')
+          s = s:gsub('[a-zA-Z0-9%.%%%+%-]+@[a-zA-Z0-9%.%-]+%.[a-zA-Z][a-zA-Z]+', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%d%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%-%d%d%-%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]0%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]6%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+
+          return s
+        end
+
+        local function process_body(raw)
+          if not raw or raw == '' then
+            return nil
+          end
+
+          if looks_like_pdf(raw) then
+            return '*REDACTED_BINARY_PDF*'
+          end
+
+          if looks_like_html(raw) then
+            return '*REDACTED_HTML_BODY*'
+          end
+
+          return redact_text(raw)
+        end
+
+        local function sanitize_urlish(value)
+          if type(value) ~= 'string' then
+            return value
+          end
+
+          value = value:gsub('([?&]e_certificate_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]nric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]userNric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]identificationNumber=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehRegNo=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehicle_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]policy_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]reference_no=)[^&]+', '%1*REDACTED*')
+          return value
+        end
+
+        local req = process_body(kong.ctx.shared.req_body)
+        if req then
+          kong.log.set_serialize_value('request.body', req)
+        end
+
+        local res = process_body(kong.ctx.shared.res_body)
+        if res then
+          kong.log.set_serialize_value('response.body', res)
+        end
+
+        kong.log.set_serialize_value('request.headers.authorization', '*REDACTED*')
+        kong.log.set_serialize_value('request.headers.cookie', '*REDACTED*')
+        kong.log.set_serialize_value('response.headers.set-cookie', '*REDACTED*')
+
+        local request_uri = kong.request.get_path_with_query()
+        if request_uri then
+          kong.log.set_serialize_value('request.uri', sanitize_urlish(request_uri))
+        end
+
+        local scheme = kong.request.get_scheme()
+        local host = kong.request.get_host()
+        if scheme and host and request_uri then
+          kong.log.set_serialize_value('request.url', sanitize_urlish(scheme .. '://' .. host .. request_uri))
+        end
+
+        local raw_query = kong.request.get_query()
+        if type(raw_query) == 'table' then
+          local query_keys = {
+            'e_certificate_no', 'nric', 'userNric', 'identificationNumber',
+            'vehRegNo', 'vehicle_no', 'policy_no', 'reference_no'
+          }
+
+          for _, key in ipairs(query_keys) do
+            if raw_query[key] ~= nil then
+              kong.log.set_serialize_value('request.querystring.' .. key, '*REDACTED*')
+            end
+          end
+        end
+
+        local upstream_uri = kong.ctx and kong.ctx.core and kong.ctx.core.upstream_uri
+        if type(upstream_uri) == 'string' then
+          kong.log.set_serialize_value('upstream_uri', sanitize_urlish(upstream_uri))
+        end
+      rewrite: []
+      ws_client_frame: []
+      ws_close: []
+      ws_handshake: []
+      ws_upstream_frame: []
+    enabled: true
+    instance_name: ClaimHistory-Storm-API-PII-Redaction-Logger
+    name: pre-function
     protocols:
     - grpc
     - grpcs
@@ -3728,7 +4323,6 @@ services:
   tags:
   - ClaimHistory
   - service:claimhistory-storm-api
-  tls_verify: false
   write_timeout: 120000
 - connect_timeout: 60000
   enabled: true
@@ -3756,8 +4350,8 @@ services:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
     methods:
-    - OPTIONS
     - POST
+    - OPTIONS
     name: OIDC-Get-Token
     path_handling: v0
     paths:
@@ -3886,6 +4480,8 @@ services:
       - custom_id
       consumer_claim:
       - sub
+      consumer_claims:
+      - - sub
       consumer_groups_claim: null
       consumer_groups_optional: false
       consumer_optional: false
@@ -3898,6 +4494,7 @@ services:
       domains: null
       downstream_access_token_header: null
       downstream_access_token_jwk_header: null
+      downstream_headers: null
       downstream_headers_claims: null
       downstream_headers_names: null
       downstream_id_token_header: null
@@ -3948,6 +4545,7 @@ services:
       introspection_token_param_name: token
       issuer: https://mp7mutb2n53dfygk.sg.identity.konghq.com/auth
       issuers_allowed: null
+      jwks_endpoint: null
       jwt_session_claim: sid
       jwt_session_cookie: null
       keepalive: true
@@ -4056,13 +4654,10 @@ services:
       session_absolute_timeout: 86400
       session_audience: default
       session_bind: null
-      session_compressor: none
       session_cookie_domain: null
       session_cookie_http_only: true
-      session_cookie_maxsize: 4000
       session_cookie_name: session
       session_cookie_path: /
-      session_cookie_renew: 600
       session_cookie_same_site: Lax
       session_cookie_secure: null
       session_enforce_same_subject: false
@@ -4099,7 +4694,6 @@ services:
       session_secret: null
       session_storage: cookie
       session_store_metadata: false
-      session_strategy: default
       ssl_verify: false
       timeout: 10000
       tls_client_auth_cert_id: null
@@ -4107,6 +4701,7 @@ services:
       token_cache_key_include_scope: false
       token_endpoint: null
       token_endpoint_auth_method: null
+      token_exchange: null
       token_exchange_endpoint: null
       token_headers_client: null
       token_headers_grants: null
@@ -4123,6 +4718,7 @@ services:
       unexpected_redirect_uri: null
       upstream_access_token_header: authorization:bearer
       upstream_access_token_jwk_header: null
+      upstream_headers: null
       upstream_headers_claims: null
       upstream_headers_names: null
       upstream_id_token_header: null
@@ -4154,6 +4750,205 @@ services:
     - grpcs
     - http
     - https
+  - config:
+      access:
+      - |
+        kong.service.request.enable_buffering()
+
+        local b = kong.request.get_raw_body()
+        if b then
+          kong.ctx.shared.req_body = b
+        end
+      body_filter:
+      - |
+        local chunk = ngx.arg[1]
+        local eof   = ngx.arg[2]
+
+        kong.ctx.shared.res_chunks = kong.ctx.shared.res_chunks or {}
+
+        if chunk and #chunk > 0 then
+          table.insert(kong.ctx.shared.res_chunks, chunk)
+        end
+
+        if eof then
+          kong.ctx.shared.res_body = table.concat(kong.ctx.shared.res_chunks)
+          kong.ctx.shared.res_chunks = nil
+        end
+      certificate: []
+      functions: []
+      header_filter: []
+      log:
+      - |
+        local function replace_json_key(s, key)
+          s = s:gsub('(\"' .. key .. '\"%s*:%s*\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_tag(s, tag)
+          s = s:gsub('(<' .. tag .. '>)(.-)(</' .. tag .. '>)', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function replace_xml_attr(s, attr)
+          s = s:gsub('(' .. attr .. '=\")([^\"]*)(\")', '%1*REDACTED*%3')
+          return s
+        end
+
+        local function looks_like_pdf(s)
+          return type(s) == 'string' and s:find('^%%PDF%-')
+        end
+
+        local function looks_like_html(s)
+          if type(s) ~= 'string' then
+            return false
+          end
+          local lower = s:lower()
+          return lower:find('<!doctype html', 1, true)
+              or lower:find('<html', 1, true)
+              or lower:find('<body', 1, true)
+        end
+
+        local function redact_text(s)
+          if type(s) ~= 'string' then
+            return s
+          end
+
+          local json_keys = {
+            'token', 'apiToken', 'access_token', 'refresh_token', 'accessToken', 'refreshToken',
+            'password', 'passwd', 'secret', 'apiKey', 'sessionId',
+            'nric', 'userNric', 'nric_no', 'identificationNumber',
+            'fullName', 'full_name', 'userName',
+            'email', 'userEmail',
+            'phone', 'userMobile', 'mobileNumber',
+            'address', 'postcode',
+            'eCertNo', 'e_cover_note', 'e_covernote',
+            'QuotationNo', 'policy_no', 'reference_no',
+            'vehRegNo', 'vehicle_no',
+            'rawDecryptedValue',
+            'clientKey', 'client_key', 'tempKey', 'temp_key',
+            'renewalUrl'
+          }
+
+          for _, key in ipairs(json_keys) do
+            s = replace_json_key(s, key)
+          end
+
+          local xml_tags = {
+            'apiToken', 'clientKey', 'nric', 'userNric', 'fullName',
+            'email', 'mobileNumber', 'QuotationNo'
+          }
+
+          for _, tag in ipairs(xml_tags) do
+            s = replace_xml_tag(s, tag)
+          end
+
+          local xml_attrs = {
+            'client_key', 'temp_key', 'tempKey'
+          }
+
+          for _, attr in ipairs(xml_attrs) do
+            s = replace_xml_attr(s, attr)
+          end
+
+          s = s:gsub('[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+%.[A-Za-z0-9-_]+', '*REDACTED*')
+          s = s:gsub('%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x', '*REDACTED*')
+          s = s:gsub('[a-zA-Z0-9%.%%%+%-]+@[a-zA-Z0-9%.%-]+%.[a-zA-Z][a-zA-Z]+', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%d%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]%d%d%d%d%d%d%-%d%d%-%d%d%d%d%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]0%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+          s = s:gsub('%f[%d]6%d%d%d%d%d%d%d%d%d?%f[%D]', '*REDACTED*')
+
+          return s
+        end
+
+        local function process_body(raw)
+          if not raw or raw == '' then
+            return nil
+          end
+
+          if looks_like_pdf(raw) then
+            return '*REDACTED_BINARY_PDF*'
+          end
+
+          if looks_like_html(raw) then
+            return '*REDACTED_HTML_BODY*'
+          end
+
+          return redact_text(raw)
+        end
+
+        local function sanitize_urlish(value)
+          if type(value) ~= 'string' then
+            return value
+          end
+
+          value = value:gsub('([?&]e_certificate_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]nric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]userNric=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]identificationNumber=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehRegNo=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]vehicle_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]policy_no=)[^&]+', '%1*REDACTED*')
+          value = value:gsub('([?&]reference_no=)[^&]+', '%1*REDACTED*')
+          return value
+        end
+
+        local req = process_body(kong.ctx.shared.req_body)
+        if req then
+          kong.log.set_serialize_value('request.body', req)
+        end
+
+        local res = process_body(kong.ctx.shared.res_body)
+        if res then
+          kong.log.set_serialize_value('response.body', res)
+        end
+
+        kong.log.set_serialize_value('request.headers.authorization', '*REDACTED*')
+        kong.log.set_serialize_value('request.headers.cookie', '*REDACTED*')
+        kong.log.set_serialize_value('response.headers.set-cookie', '*REDACTED*')
+
+        local request_uri = kong.request.get_path_with_query()
+        if request_uri then
+          kong.log.set_serialize_value('request.uri', sanitize_urlish(request_uri))
+        end
+
+        local scheme = kong.request.get_scheme()
+        local host = kong.request.get_host()
+        if scheme and host and request_uri then
+          kong.log.set_serialize_value('request.url', sanitize_urlish(scheme .. '://' .. host .. request_uri))
+        end
+
+        local raw_query = kong.request.get_query()
+        if type(raw_query) == 'table' then
+          local query_keys = {
+            'e_certificate_no', 'nric', 'userNric', 'identificationNumber',
+            'vehRegNo', 'vehicle_no', 'policy_no', 'reference_no'
+          }
+
+          for _, key in ipairs(query_keys) do
+            if raw_query[key] ~= nil then
+              kong.log.set_serialize_value('request.querystring.' .. key, '*REDACTED*')
+            end
+          end
+        end
+
+        local upstream_uri = kong.ctx and kong.ctx.core and kong.ctx.core.upstream_uri
+        if type(upstream_uri) == 'string' then
+          kong.log.set_serialize_value('upstream_uri', sanitize_urlish(upstream_uri))
+        end
+      rewrite: []
+      ws_client_frame: []
+      ws_close: []
+      ws_handshake: []
+      ws_upstream_frame: []
+    enabled: true
+    instance_name: KYC-WSManager-API-PII-Redaction-Logger
+    name: pre-function
+    protocols:
+    - grpc
+    - grpcs
+    - http
+    - https
   port: 8999
   protocol: https
   read_timeout: 60000
@@ -4162,6 +4957,9 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - POST
+    - OPTIONS
     name: kyc-wsmanager-input-add-route
     path_handling: v0
     paths:
@@ -4210,6 +5008,9 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - GET
+    - OPTIONS
     name: kyc-wsmanager-kyc-risk-score-latest-route
     path_handling: v0
     paths:
@@ -4294,6 +5095,9 @@ services:
   - hosts:
     - kong-api-dev.takaful-malaysia.com.my:443
     https_redirect_status_code: 426
+    methods:
+    - GET
+    - OPTIONS
     name: kyc-wsmanager-kyc-topic-get-route
     path_handling: v0
     paths:
